@@ -56,7 +56,7 @@ const config = Object.freeze({
     password: optional('DB_PASSWORD'),
   }),
   jwt: Object.freeze({
-    secret: optional('JWT_SECRET'),
+    secret: required('JWT_SECRET'),
     expiresIn: optional('JWT_EXPIRES_IN', '1d'),
   }),
   cookie: Object.freeze({

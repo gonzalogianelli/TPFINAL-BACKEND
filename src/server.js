@@ -2,6 +2,7 @@ import { app } from './app.js';
 import { config } from './config/env.js';
 import { logger } from './config/logger.js';
 import { connectDatabase, closeDatabase } from './config/database.js';
+import { initModels } from './models/index.js';
 
 let server = null;
 let shuttingDown = false;
@@ -31,6 +32,7 @@ const shutdown = async (signal, exitCode = 0) => {
 const start = async () => {
   try {
     await connectDatabase();
+    await initModels();
 
     server = app.listen(config.server.port, () => {
       logger.info({ port: config.server.port, env: config.env }, 'Servidor iniciado');
