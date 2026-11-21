@@ -79,4 +79,4 @@ El sistema SHALL exponer la documentación OpenAPI de la API en `/api-docs` (int
 
 #### Scenario: Endpoints documentados con parámetros y respuestas
 - **WHEN** se consulta el documento OpenAPI
-- **THEN** los endpoints de autenticación y usuarios incluyen sus parámetros de ruta y consulta y las respuestas de éxito y error correspondientes
+- **THEN** los endpoints de autenticación, usuarios, canchas, turnos y reservas incluyen sus parámetros de ruta y consulta y las respuestas de éxito y error correspondientes

@@ -1,6 +1,6 @@
 # Sistema de Gestión de Complejo de Pádel — Backend
 
-API REST para un complejo de pádel. Estado actual: base del backend (Módulo 0) más autenticación, control de roles y gestión de usuarios (Módulo 1). Canchas, turnos, reservas y partidos incompletos se incorporarán en módulos posteriores.
+API REST para un complejo de pádel. Estado actual: base del backend (Módulo 0), autenticación/roles/usuarios (Módulo 1) y gestión de canchas, turnos de 90 minutos y reservas (Módulo 2). Los partidos incompletos se incorporarán en un módulo posterior.
 
 ## Stack
 
@@ -65,7 +65,7 @@ Modo producción:
 npm start
 ```
 
-El servidor valida la configuración, se conecta a MySQL, sincroniza los modelos (creando la tabla `usuarios` si no existe) y recién entonces escucha en `PORT`. Si la conexión inicial a MySQL o la sincronización fallan, el proceso termina con código 1. Las variables SMTP incompletas no impiden el arranque.
+El servidor valida la configuración, se conecta a MySQL, sincroniza los modelos (creando las tablas `usuarios`, `canchas`, `turnos` y `reservas` si no existen) y recién entonces escucha en `PORT`. Si la conexión inicial a MySQL o la sincronización fallan, el proceso termina con código 1. Las variables SMTP incompletas no impiden el arranque.
 
 ## Verificación del estado
 
@@ -106,7 +106,7 @@ El endpoint no requiere autenticación y está excluido del rate limit.
 curl -i http://localhost:3000/api-docs.json
 ```
 
-Ambas rutas son públicas. El documento declara el esquema de seguridad `cookieAuth` (`apiKey` en cookie, con el nombre configurado en `COOKIE_NAME`, por defecto `padel_token`) y describe los parámetros de ruta/consulta y las respuestas de cada endpoint de auth y usuarios.
+Ambas rutas son públicas. El documento declara el esquema de seguridad `cookieAuth` (`apiKey` en cookie, con el nombre configurado en `COOKIE_NAME`, por defecto `padel_token`), los tags `Usuarios`, `Canchas`, `Turnos` y `Reservas`, y describe los parámetros de ruta/consulta y las respuestas de todos los endpoints.
 
 ## Modelo de usuario
 
@@ -186,6 +186,81 @@ curl -i -X PATCH -b admin-cookies.txt -H "Content-Type: application/json" -d '{"
 
 Reemplazá `<id>` por un id devuelto por el listado. Para verificar en MySQL Workbench, revisá la tabla `usuarios`: el campo `password` debe contener un hash que empieza con `$2`, nunca el texto original.
 
+## Módulo 2: canchas, turnos y reservas
+
+Los modelos nuevos se crean con `sequelize.sync()` al iniciar y se asocian en `src/models/index.js`:
+
+| Tabla | Campos principales | Reglas |
+| --- | --- | --- |
+| `canchas` | `id`, `nombre`, `bloqueada` | `nombre` no vacío; `bloqueada` default `false` |
+| `turnos` | `id`, `canchaId`, `fechaHoraInicio`, `fechaHoraFin`, `estado` | Duración fija de 90 minutos; estados `disponible`, `reservado`, `cancelado`, `jugado`, `bloqueado` |
+| `reservas` | `id`, `turnoId`, `usuarioId`, `estado`, `cupoMaximo`, `cuposOcupados` | `cupoMaximo = 4`; `cuposOcupados` entre 1 y 4; estados `pendiente`, `confirmada`, `rechazada`, `cancelada` |
+
+Las respuestas de reserva informan además `lugaresOcupados`, `lugaresFaltantes` y `esCompleta`. No hay tabla de inscripciones individuales: los cupos son un dato agregado.
+
+### Endpoints
+
+| Método | Ruta | Acceso | Descripción |
+| --- | --- | --- | --- |
+| `GET` | `/api/canchas` | Cookie | Lista canchas con filtros `nombre`, `bloqueada`, `page`, `limit` (por defecto excluye bloqueadas) |
+| `POST` | `/api/canchas` | Administrador | Crea cancha |
+| `GET` | `/api/canchas/:id` | Cookie | Consulta por id de ruta |
+| `PATCH` | `/api/canchas/:id` | Administrador | Edita nombre o bloqueo |
+| `GET` | `/api/turnos` | Cookie | Lista turnos con filtros `fecha`, `canchaId`, `estado`, `page`, `limit`; el jugador siempre ve solo `disponible` |
+| `POST` | `/api/turnos` | Administrador | Carga manual de turno de 90 minutos desde `canchaId` y `fechaHoraInicio` |
+| `GET` | `/api/turnos/:id` | Cookie | Consulta por id de ruta |
+| `PATCH` | `/api/turnos/:id` | Administrador | Cambia fecha/estado, bloquea, cancela, marca `jugado` o republica desde `cancelado` |
+| `GET` | `/api/reservas` | Cookie | Jugador ve solo las suyas; administrador ve todas. Filtros `estado`, `turnoId`, `fecha`, `page`, `limit` |
+| `POST` | `/api/reservas` | Jugador | Solicita turno indicando `turnoId` y `cuposOcupados`; el turno pasa a `reservado` |
+| `GET` | `/api/reservas/:id` | Cookie | Consulta por id de ruta; reserva ajena da `404` para jugador |
+| `PATCH` | `/api/reservas/:id` | Administrador | Actualiza `cuposOcupados` |
+| `PATCH` | `/api/reservas/:id/confirmar` | Administrador | `pendiente` → `confirmada`; el turno sigue `reservado` |
+| `PATCH` | `/api/reservas/:id/rechazar` | Administrador | `pendiente` → `rechazada`; el turno vuelve a `disponible` |
+| `PATCH` | `/api/reservas/:id/cancelar` | Administrador | `confirmada` → `cancelada`; el turno queda `cancelado` y requiere republicación manual |
+
+### Reglas de reserva y cupos
+
+- Una sola solicitud `pendiente`/`confirmada` por turno. La creación usa una transacción con `Transaction.LOCK.UPDATE` sobre el turno: una de dos solicitudes concurrentes responde `201` y la otra `409`.
+- Solapar turnos activos (`disponible`, `reservado`, `bloqueado`) de una misma cancha responde `409`. Se comparan intervalos semiabiertos `[inicio, fin)`.
+- Un turno no se ofrece en el listado de disponibles cuando está `reservado`, `bloqueado`, `cancelado` o `jugado`, ni cuando su cancha está bloqueada.
+- Rechazar devuelve el turno a `disponible`; cancelar no. Para republicar, el administrador ejecuta `PATCH /api/turnos/:id` con `{"estado":"disponible"}` sobre un turno cancelado.
+- No se bloquea un turno con reserva `pendiente`/`confirmada`: primero debe cancelarse la reserva.
+- Las escrituras de reservas por parte de un jugador devuelven `403`; las consultas sin cookie devuelven `401`.
+
+### Flujo completo con curl
+
+Los ejemplos usan las cuentas de prueba `admin@example.com` y `jugador@example.com` con la contraseña de prueba `secreto123`. Reemplazalos si tu base tiene otros usuarios. No se incluyen secretos de entorno.
+
+```bash
+curl -s -c admin-cookies.txt -H "Content-Type: application/json" -d '{"email":"admin@example.com","password":"secreto123"}' http://localhost:3000/api/auth/login
+
+curl -s -c jugador-cookies.txt -H "Content-Type: application/json" -d '{"email":"jugador@example.com","password":"secreto123"}' http://localhost:3000/api/auth/login
+
+FECHA=$(node -e "process.stdout.write(new Date(Date.now() + 7*24*60*60*1000).toISOString())")
+
+CANCHA_ID=$(curl -s -b admin-cookies.txt -H "Content-Type: application/json" -d '{"nombre":"Cancha 1"}' http://localhost:3000/api/canchas | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(String(JSON.parse(s).data.id)))")
+
+TURNO_ID=$(curl -s -b admin-cookies.txt -H "Content-Type: application/json" -d "{\"canchaId\":$CANCHA_ID,\"fechaHoraInicio\":\"$FECHA\"}" http://localhost:3000/api/turnos | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(String(JSON.parse(s).data.id)))")
+
+curl -s -b jugador-cookies.txt "http://localhost:3000/api/turnos?canchaId=$CANCHA_ID"
+
+RESERVA_ID=$(curl -s -b jugador-cookies.txt -H "Content-Type: application/json" -d "{\"turnoId\":$TURNO_ID,\"cuposOcupados\":2}" http://localhost:3000/api/reservas | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(String(JSON.parse(s).data.id)))")
+
+curl -s -b admin-cookies.txt -X PATCH -H "Content-Type: application/json" -d '{"cuposOcupados":4}' "http://localhost:3000/api/reservas/$RESERVA_ID"
+
+curl -s -b admin-cookies.txt -X PATCH "http://localhost:3000/api/reservas/$RESERVA_ID/confirmar"
+
+curl -s -b admin-cookies.txt -X PATCH "http://localhost:3000/api/reservas/$RESERVA_ID/cancelar"
+
+curl -s -b jugador-cookies.txt "http://localhost:3000/api/turnos?canchaId=$CANCHA_ID"
+
+curl -s -b admin-cookies.txt -X PATCH -H "Content-Type: application/json" -d '{"estado":"disponible"}' "http://localhost:3000/api/turnos/$TURNO_ID"
+
+curl -s -b jugador-cookies.txt "http://localhost:3000/api/turnos?canchaId=$CANCHA_ID"
+```
+
+El primer listado de turnos incluye el turno nuevo; luego de la cancelación no lo incluye; después de la republicación vuelve a incluirlo. Los envíos SMTP quedan para el módulo de notificaciones.
+
 ## Estructura
 
 ```
@@ -200,25 +275,40 @@ src/
 ├── controllers/
 │   ├── health.controller.js
 │   ├── auth.controller.js
-│   └── user.controller.js
+│   ├── user.controller.js
+│   ├── cancha.controller.js
+│   ├── turno.controller.js
+│   └── reserva.controller.js
 ├── middlewares/
 │   ├── notFound.js           # 404 JSON
 │   ├── errorHandler.js       # Manejo global de errores
 │   └── auth.js               # authenticate y requireRole
 ├── models/
-│   ├── index.js              # initModels() + sequelize.sync()
-│   └── User.js               # Modelo Usuario (tabla usuarios)
+│   ├── index.js              # initModels(), asociaciones y sequelize.sync()
+│   ├── User.js               # Modelo Usuario (tabla usuarios)
+│   ├── Cancha.js             # Modelo Cancha (tabla canchas)
+│   ├── Turno.js              # Modelo Turno (tabla turnos)
+│   └── Reserva.js            # Modelo Reserva (tabla reservas)
 ├── routes/
 │   ├── health.routes.js
 │   ├── auth.routes.js
-│   └── user.routes.js
+│   ├── user.routes.js
+│   ├── cancha.routes.js
+│   ├── turno.routes.js
+│   └── reserva.routes.js
 ├── services/
 │   ├── auth.service.js
-│   └── user.service.js
+│   ├── user.service.js
+│   ├── cancha.service.js
+│   ├── turno.service.js
+│   └── reserva.service.js
 └── utils/
     ├── AppError.js           # Error de aplicación con statusCode
     ├── asyncHandler.js       # Wrapper para controladores async
-    └── userValidation.js     # Enums, validación de payloads y parseo de query
+    ├── userValidation.js     # Enums, validación de payloads y parseo de query
+    ├── canchaValidation.js
+    ├── turnoValidation.js
+    └── reservaValidation.js
 ```
 
 ## Manejo de errores

@@ -52,6 +52,11 @@ const options = {
         'API REST del complejo de padel. La sesion se mantiene en una cookie HTTPOnly con JWT.',
     },
     servers: [{ url: `http://localhost:${config.server.port}`, description: 'Servidor local' }],
+    tags: [
+      { name: 'Canchas', description: 'Gestion del inventario de canchas' },
+      { name: 'Turnos', description: 'Carga manual de turnos de 90 minutos' },
+      { name: 'Reservas', description: 'Solicitudes, cupos y decisiones de reserva' },
+    ],
     components: {
       securitySchemes: {
         cookieAuth: {
@@ -158,6 +163,166 @@ const options = {
             sexo: userFields.sexo,
             telefono: userFields.telefono,
             rol: userFields.rol,
+          },
+        },
+        Cancha: {
+          type: 'object',
+          properties: {
+            id: { type: 'integer', example: 1 },
+            nombre: { type: 'string', example: 'Cancha 1' },
+            bloqueada: { type: 'boolean', example: false },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        CanchaCreateRequest: {
+          type: 'object',
+          required: ['nombre'],
+          properties: {
+            nombre: { type: 'string', example: 'Cancha 1' },
+            bloqueada: { type: 'boolean', example: false },
+          },
+        },
+        CanchaUpdateRequest: {
+          type: 'object',
+          properties: {
+            nombre: { type: 'string', example: 'Cancha 1' },
+            bloqueada: { type: 'boolean', example: true },
+          },
+        },
+        SuccessCanchaResponse: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', example: 'success' },
+            data: { $ref: '#/components/schemas/Cancha' },
+          },
+        },
+        SuccessCanchasResponse: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', example: 'success' },
+            data: { type: 'array', items: { $ref: '#/components/schemas/Cancha' } },
+            meta: {
+              type: 'object',
+              properties: {
+                page: { type: 'integer', example: 1 },
+                limit: { type: 'integer', example: 10 },
+                total: { type: 'integer', example: 5 },
+              },
+            },
+          },
+        },
+        Turno: {
+          type: 'object',
+          properties: {
+            id: { type: 'integer', example: 1 },
+            canchaId: { type: 'integer', example: 1 },
+            fechaHoraInicio: { type: 'string', format: 'date-time' },
+            fechaHoraFin: { type: 'string', format: 'date-time' },
+            estado: {
+              type: 'string',
+              enum: ['disponible', 'reservado', 'cancelado', 'jugado', 'bloqueado'],
+              example: 'disponible',
+            },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        TurnoCreateRequest: {
+          type: 'object',
+          required: ['canchaId', 'fechaHoraInicio'],
+          properties: {
+            canchaId: { type: 'integer', minimum: 1, example: 1 },
+            fechaHoraInicio: { type: 'string', format: 'date-time', example: '2026-11-22T10:00:00.000Z' },
+          },
+        },
+        TurnoUpdateRequest: {
+          type: 'object',
+          properties: {
+            fechaHoraInicio: { type: 'string', format: 'date-time', example: '2026-11-22T10:00:00.000Z' },
+            estado: {
+              type: 'string',
+              enum: ['disponible', 'reservado', 'cancelado', 'jugado', 'bloqueado'],
+            },
+          },
+        },
+        SuccessTurnoResponse: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', example: 'success' },
+            data: { $ref: '#/components/schemas/Turno' },
+          },
+        },
+        SuccessTurnosResponse: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', example: 'success' },
+            data: { type: 'array', items: { $ref: '#/components/schemas/Turno' } },
+            meta: {
+              type: 'object',
+              properties: {
+                page: { type: 'integer', example: 1 },
+                limit: { type: 'integer', example: 10 },
+                total: { type: 'integer', example: 8 },
+              },
+            },
+          },
+        },
+        Reserva: {
+          type: 'object',
+          properties: {
+            id: { type: 'integer', example: 1 },
+            turnoId: { type: 'integer', example: 1 },
+            usuarioId: { type: 'integer', example: 2 },
+            estado: {
+              type: 'string',
+              enum: ['pendiente', 'confirmada', 'rechazada', 'cancelada'],
+              example: 'pendiente',
+            },
+            cupoMaximo: { type: 'integer', example: 4 },
+            cuposOcupados: { type: 'integer', example: 2 },
+            lugaresOcupados: { type: 'integer', example: 2 },
+            lugaresFaltantes: { type: 'integer', example: 2 },
+            esCompleta: { type: 'boolean', example: false },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        ReservaCreateRequest: {
+          type: 'object',
+          required: ['turnoId', 'cuposOcupados'],
+          properties: {
+            turnoId: { type: 'integer', minimum: 1, example: 1 },
+            cuposOcupados: { type: 'integer', minimum: 1, maximum: 4, example: 2 },
+          },
+        },
+        ReservaCuposRequest: {
+          type: 'object',
+          required: ['cuposOcupados'],
+          properties: {
+            cuposOcupados: { type: 'integer', minimum: 1, maximum: 4, example: 4 },
+          },
+        },
+        SuccessReservaResponse: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', example: 'success' },
+            data: { $ref: '#/components/schemas/Reserva' },
+          },
+        },
+        SuccessReservasResponse: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', example: 'success' },
+            data: { type: 'array', items: { $ref: '#/components/schemas/Reserva' } },
+            meta: {
+              type: 'object',
+              properties: {
+                page: { type: 'integer', example: 1 },
+                limit: { type: 'integer', example: 10 },
+                total: { type: 'integer', example: 3 },
+              },
+            },
           },
         },
       },

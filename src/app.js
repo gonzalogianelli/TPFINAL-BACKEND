@@ -11,6 +11,9 @@ import { swaggerSpec } from './config/swagger.js';
 import { healthRouter } from './routes/health.routes.js';
 import { authRouter } from './routes/auth.routes.js';
 import { userRouter } from './routes/user.routes.js';
+import { canchaRouter } from './routes/cancha.routes.js';
+import { turnoRouter } from './routes/turno.routes.js';
+import { reservaRouter } from './routes/reserva.routes.js';
 import { notFound } from './middlewares/notFound.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 
@@ -48,6 +51,9 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/users', userRouter);
+app.use('/api/canchas', canchaRouter);
+app.use('/api/turnos', turnoRouter);
+app.use('/api/reservas', reservaRouter);
 
 app.use(notFound);
 app.use(errorHandler);
