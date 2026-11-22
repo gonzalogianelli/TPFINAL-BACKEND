@@ -59,6 +59,21 @@ El sistema SHALL registrar `cupoMaximo = 4` y `cuposOcupados`, informando lugare
 - **WHEN** un administrador actualiza `cuposOcupados` de una reserva con un valor entre 1 y 4
 - **THEN** el sistema persiste el nuevo valor y recalcula lugares faltantes y si la reserva está completa
 
+### Requirement: Partido asociado con inscripciones individuales
+El sistema SHALL permitir que una reserva confirmada tenga un único partido asociado que registre inscripciones individuales de jugadores, manteniendo `cupoMaximo` y `cuposOcupados` como dato agregado histórico de la solicitud.
+
+#### Scenario: Partido creado sobre reserva confirmada
+- **WHEN** un administrador crea un partido sobre una reserva confirmada
+- **THEN** el partido queda asociado a esa reserva y a su turno sin modificar los campos `cupoMaximo` ni `cuposOcupados` de la reserva
+
+#### Scenario: Inscripciones del partido no alteran el agregado de la reserva
+- **WHEN** los jugadores se inscriben o se dan de baja del partido asociado
+- **THEN** las respuestas de `GET /api/reservas` y `GET /api/reservas/:id` conservan el valor de `cuposOcupados` registrado al solicitar la reserva
+
+#### Scenario: Reserva inactiva
+- **WHEN** la reserva asociada a un partido deja de estar confirmada
+- **THEN** el partido no admite nuevas inscripciones y responde `409`
+
 ### Requirement: Consulta de reservas
 El sistema SHALL exponer `GET /api/reservas` y `GET /api/reservas/:id`; un jugador SHALL ver solo sus propias reservas y un administrador SHALL ver todas, con filtros de `req.query` `estado`, `turnoId`, `fecha` y paginación con `page` y `limit`.
 
@@ -115,6 +130,10 @@ El sistema SHALL permitir que un administrador cancele una reserva confirmada me
 #### Scenario: Jugador intenta cancelar
 - **WHEN** un jugador solicita `PATCH /api/reservas/:id/cancelar`
 - **THEN** el sistema responde `403` y no modifica la reserva ni el turno
+
+#### Scenario: Cancelación por falta de quórum de un partido asociado
+- **WHEN** un administrador cancela por quórum el partido asociado a una reserva confirmada
+- **THEN** la reserva pasa a `cancelada`, el turno a `cancelado` y ninguno vuelve a `disponible` sin una republicación manual explícita
 
 ### Requirement: Control de acceso por rol en reservas
 El sistema SHALL limitar la creación de solicitudes a usuarios autenticados con rol `jugador` y las operaciones de confirmación, rechazo, cancelación y actualización de cupos al rol `administrador`, respondiendo `401` sin sesión y `403` para roles no permitidos.
