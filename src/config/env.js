@@ -47,6 +47,7 @@ const config = Object.freeze({
   env: optional('NODE_ENV', 'development'),
   server: Object.freeze({
     port: toNumber('PORT', 3000),
+    trustProxy: toBoolean('TRUST_PROXY', false),
   }),
   db: Object.freeze({
     host: required('DB_HOST'),

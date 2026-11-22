@@ -1,7 +1,4 @@
-import { config } from '../config/env.js';
 import { logger } from '../config/logger.js';
-
-const isProduction = config.env === 'production';
 
 const errorHandler = (err, req, res, next) => {
   if (res.headersSent) {
@@ -23,10 +20,6 @@ const errorHandler = (err, req, res, next) => {
   );
 
   const body = { status: 'error', message };
-
-  if (!isProduction && !isOperational && err instanceof Error && err.stack) {
-    body.stack = err.stack;
-  }
 
   return res.status(statusCode).json(body);
 };

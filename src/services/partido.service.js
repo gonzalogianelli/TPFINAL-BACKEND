@@ -316,6 +316,9 @@ const darDeBaja = async (partidoValue, usuarioValue, user, deps = {}) => {
     if (!partidoEncontrado) {
       throw new AppError('Partido no encontrado', 404);
     }
+    if (['jugado', 'cancelado'].includes(partidoEncontrado.estado)) {
+      throw new AppError('No se puede dar de baja un inscripto de un partido jugado o cancelado', 409);
+    }
 
     const inscripcion = await Inscripcion.findOne({
       where: { partidoId, usuarioId },

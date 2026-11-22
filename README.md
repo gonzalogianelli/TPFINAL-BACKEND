@@ -48,6 +48,7 @@ cp .env.example .env
 | `CLIENT_URL` | Origen permitido por CORS | No (default `http://localhost:5173`) |
 | `RATE_LIMIT_WINDOW_MS` | Ventana del rate limit en ms | No (default `900000`) |
 | `RATE_LIMIT_MAX` | Máximo de peticiones por ventana | No (default `100`) |
+| `TRUST_PROXY` | Confía en `X-Forwarded-For` detrás de proxy (`false`/`0` o `true`/`1`) | No (default `false`) |
 | `SMTP_HOST` | Host del servidor SMTP | No (si falta, el correo queda deshabilitado) |
 | `SMTP_PORT` | Puerto SMTP | No (default `587`) |
 | `SMTP_SECURE` | `true` para SMTPS; `false` para STARTTLS | No (default `false`) |
@@ -281,7 +282,7 @@ El administrador crea un `Partido` sobre una reserva confirmada. Los jugadores c
 ### Reglas de categoría, cupo y concurrencia
 
 - Categorías válidas: `octava`, `séptima`, `sexta`, `quinta`, `cuarta`, `tercera`, `segunda`, `primera` (la misma que en `usuarios`).
-- Un jugador puede inscribirse si su categoría es igual a la del partido o está como máximo **una categoría por encima** (por ejemplo, en `octava` entran `octava` y `séptima`).
+- Un jugador puede inscribirse si la diferencia absoluta entre el índice de su categoría y el de la categoría del partido es como máximo **1** (por ejemplo, en `octava` entran `octava` y `séptima`; en `sexta` entran `sexta`, `quinta` y `séptima`).
 - El turno asociado debe estar `reservado`. El alta rechaza reservas no confirmadas o duplicadas con `409`.
 - La inscripción usa `sequelize.transaction()` con `Transaction.LOCK.UPDATE` sobre el partido: ante dos inscripciones simultáneas al último lugar, una responde `201` y la otra `409`.
 - Cambiar `categoria` revalida a todos los inscriptos; si alguno queda fuera de rango, responde `409`. Solo un partido `completo` puede cerrarse como `jugado`.
@@ -340,7 +341,7 @@ Los eventos de negocio exitosos envían correos transaccionales con `nodemailer`
 
 | Evento | Operación que lo dispara | Destinatarios |
 | --- | --- | --- |
-| Confirmación de registro | `POST /api/auth/register` o `POST /api/users` | Nuevo jugador |
+| Confirmación de registro | `POST /api/auth/register` o `POST /api/users` | Usuario creado y administradores |
 | Solicitud de reserva | `POST /api/reservas` | Jugador solicitante y administradores |
 | Confirmación, rechazo o cancelación de reserva | `PATCH /api/reservas/:id/confirmar`, `/rechazar` o `/cancelar` | Jugador titular y administradores |
 | Inscripción a partido | `POST /api/partidos/:id/inscripciones` | Jugador inscripto y administradores |
