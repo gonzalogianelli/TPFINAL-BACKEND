@@ -56,6 +56,7 @@ const options = {
       { name: 'Canchas', description: 'Gestion del inventario de canchas' },
       { name: 'Turnos', description: 'Carga manual de turnos de 90 minutos' },
       { name: 'Reservas', description: 'Solicitudes, cupos y decisiones de reserva' },
+      { name: 'Partidos', description: 'Partidos incompletos, huecos e inscripcion de jugadores' },
     ],
     components: {
       securitySchemes: {
@@ -264,6 +265,86 @@ const options = {
                 page: { type: 'integer', example: 1 },
                 limit: { type: 'integer', example: 10 },
                 total: { type: 'integer', example: 8 },
+              },
+            },
+          },
+        },
+        Inscripcion: {
+          type: 'object',
+          properties: {
+            id: { type: 'integer', example: 3 },
+            nombre: { type: 'string', example: 'Ana Perez' },
+            categoria: { type: 'string', example: 'octava' },
+          },
+        },
+        Partido: {
+          type: 'object',
+          properties: {
+            id: { type: 'integer', example: 1 },
+            reservaId: { type: 'integer', example: 1 },
+            categoria: {
+              type: 'string',
+              enum: ['octava', 'séptima', 'sexta', 'quinta', 'cuarta', 'tercera', 'segunda', 'primera'],
+              example: 'octava',
+            },
+            estado: {
+              type: 'string',
+              enum: ['incompleto', 'completo', 'cancelado', 'jugado'],
+              example: 'incompleto',
+            },
+            cupoMaximo: { type: 'integer', example: 4 },
+            lugaresOcupados: { type: 'integer', example: 1 },
+            lugaresFaltantes: { type: 'integer', example: 3 },
+            esCompleta: { type: 'boolean', example: false },
+            inscriptos: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/Inscripcion' },
+            },
+            turno: { $ref: '#/components/schemas/Turno' },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        PartidoCreateRequest: {
+          type: 'object',
+          required: ['reservaId', 'categoria'],
+          properties: {
+            reservaId: { type: 'integer', minimum: 1, example: 1 },
+            categoria: {
+              type: 'string',
+              enum: ['octava', 'séptima', 'sexta', 'quinta', 'cuarta', 'tercera', 'segunda', 'primera'],
+              example: 'octava',
+            },
+          },
+        },
+        PartidoUpdateRequest: {
+          type: 'object',
+          properties: {
+            categoria: {
+              type: 'string',
+              enum: ['octava', 'séptima', 'sexta', 'quinta', 'cuarta', 'tercera', 'segunda', 'primera'],
+            },
+            estado: { type: 'string', enum: ['jugado'] },
+          },
+        },
+        SuccessPartidoResponse: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', example: 'success' },
+            data: { $ref: '#/components/schemas/Partido' },
+          },
+        },
+        SuccessPartidosResponse: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', example: 'success' },
+            data: { type: 'array', items: { $ref: '#/components/schemas/Partido' } },
+            meta: {
+              type: 'object',
+              properties: {
+                page: { type: 'integer', example: 1 },
+                limit: { type: 'integer', example: 10 },
+                total: { type: 'integer', example: 2 },
               },
             },
           },

@@ -4,6 +4,13 @@ import { User } from './User.js';
 import { Cancha } from './Cancha.js';
 import { Turno, DURACION_TURNO_MINUTOS, ESTADOS_TURNO, TURNOS_ACTIVOS } from './Turno.js';
 import { Reserva, CUPO_MAXIMO, ESTADOS_RESERVA, RESERVAS_ACTIVAS } from './Reserva.js';
+import {
+  Partido,
+  CUPO_MAXIMO_PARTIDO,
+  ESTADOS_PARTIDO,
+  ESTADOS_PARTIDO_ACTIVOS,
+} from './Partido.js';
+import { Inscripcion } from './Inscripcion.js';
 
 Cancha.hasMany(Turno, { foreignKey: 'canchaId' });
 Turno.belongsTo(Cancha, { foreignKey: 'canchaId' });
@@ -14,10 +21,19 @@ Reserva.belongsTo(Turno, { foreignKey: 'turnoId' });
 User.hasMany(Reserva, { foreignKey: 'usuarioId' });
 Reserva.belongsTo(User, { foreignKey: 'usuarioId' });
 
+Reserva.hasOne(Partido, { foreignKey: 'reservaId' });
+Partido.belongsTo(Reserva, { foreignKey: 'reservaId' });
+
+Partido.hasMany(Inscripcion, { foreignKey: 'partidoId', as: 'inscripciones' });
+Inscripcion.belongsTo(Partido, { foreignKey: 'partidoId' });
+
+User.hasMany(Inscripcion, { foreignKey: 'usuarioId', as: 'inscripciones' });
+Inscripcion.belongsTo(User, { foreignKey: 'usuarioId' });
+
 const initModels = async () => {
   await sequelize.sync();
   logger.info('Modelos sincronizados con MySQL');
-  return { User, Cancha, Turno, Reserva };
+  return { User, Cancha, Turno, Reserva, Partido, Inscripcion };
 };
 
 export {
@@ -26,6 +42,11 @@ export {
   Cancha,
   Turno,
   Reserva,
+  Partido,
+  Inscripcion,
+  CUPO_MAXIMO_PARTIDO,
+  ESTADOS_PARTIDO,
+  ESTADOS_PARTIDO_ACTIVOS,
   DURACION_TURNO_MINUTOS,
   ESTADOS_TURNO,
   TURNOS_ACTIVOS,

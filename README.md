@@ -106,7 +106,7 @@ El endpoint no requiere autenticación y está excluido del rate limit.
 curl -i http://localhost:3000/api-docs.json
 ```
 
-Ambas rutas son públicas. El documento declara el esquema de seguridad `cookieAuth` (`apiKey` en cookie, con el nombre configurado en `COOKIE_NAME`, por defecto `padel_token`), los tags `Usuarios`, `Canchas`, `Turnos` y `Reservas`, y describe los parámetros de ruta/consulta y las respuestas de todos los endpoints.
+Ambas rutas son públicas. El documento declara el esquema de seguridad `cookieAuth` (`apiKey` en cookie, con el nombre configurado en `COOKIE_NAME`, por defecto `padel_token`), los tags `Usuarios`, `Canchas`, `Turnos`, `Reservas` y `Partidos`, y describe los parámetros de ruta/consulta y las respuestas de todos los endpoints.
 
 ## Modelo de usuario
 
@@ -196,7 +196,7 @@ Los modelos nuevos se crean con `sequelize.sync()` al iniciar y se asocian en `s
 | `turnos` | `id`, `canchaId`, `fechaHoraInicio`, `fechaHoraFin`, `estado` | Duración fija de 90 minutos; estados `disponible`, `reservado`, `cancelado`, `jugado`, `bloqueado` |
 | `reservas` | `id`, `turnoId`, `usuarioId`, `estado`, `cupoMaximo`, `cuposOcupados` | `cupoMaximo = 4`; `cuposOcupados` entre 1 y 4; estados `pendiente`, `confirmada`, `rechazada`, `cancelada` |
 
-Las respuestas de reserva informan además `lugaresOcupados`, `lugaresFaltantes` y `esCompleta`. No hay tabla de inscripciones individuales: los cupos son un dato agregado.
+Las respuestas de reserva informan además `lugaresOcupados`, `lugaresFaltantes` y `esCompleta`. `Reserva.cuposOcupados` se conserva como dato histórico agregado; desde el Módulo 3 las inscripciones individuales se gestionan en la tabla `inscripciones` del partido asociado.
 
 ### Endpoints
 
@@ -261,6 +261,73 @@ curl -s -b jugador-cookies.txt "http://localhost:3000/api/turnos?canchaId=$CANCH
 
 El primer listado de turnos incluye el turno nuevo; luego de la cancelación no lo incluye; después de la republicación vuelve a incluirlo. Los envíos SMTP quedan para el módulo de notificaciones.
 
+## Módulo 3: partidos incompletos
+
+El administrador crea un `Partido` sobre una reserva confirmada. Los jugadores consultan huecos y se inscriben; las bajas y la cancelación por falta de quórum nunca republican el turno automáticamente.
+
+| Tabla | Campos principales | Reglas |
+| --- | --- | --- |
+| `partidos` | `id`, `reservaId`, `categoria`, `estado` | `reservaId` único; un solo partido por reserva; estados `incompleto`, `completo`, `cancelado`, `jugado` |
+| `inscripciones` | `id`, `partidoId`, `usuarioId` | Única compuesta `(partidoId, usuarioId)`; máximo 4 filas por partido |
+
+`cupoMaximo` es siempre 4. `lugaresOcupados` es la cantidad real de inscripciones y `lugaresFaltantes = 4 - lugaresOcupados`. Un partido pasa a `completo` al alcanzar 4 inscriptos.
+
+### Reglas de categoría, cupo y concurrencia
+
+- Categorías válidas: `octava`, `séptima`, `sexta`, `quinta`, `cuarta`, `tercera`, `segunda`, `primera` (la misma que en `usuarios`).
+- Un jugador puede inscribirse si su categoría es igual a la del partido o está como máximo **una categoría por encima** (por ejemplo, en `octava` entran `octava` y `séptima`).
+- El turno asociado debe estar `reservado`. El alta rechaza reservas no confirmadas o duplicadas con `409`.
+- La inscripción usa `sequelize.transaction()` con `Transaction.LOCK.UPDATE` sobre el partido: ante dos inscripciones simultáneas al último lugar, una responde `201` y la otra `409`.
+- Cambiar `categoria` revalida a todos los inscriptos; si alguno queda fuera de rango, responde `409`. Solo un partido `completo` puede cerrarse como `jugado`.
+- Dar de baja un inscripto no modifica el turno. El administrador puede borrar cualquier inscripción; un jugador solo la propia (`403` si intenta borrar otra).
+- Cancelar por quórum elimina las inscripciones y marca `partido`, `reserva` y `turno` como `cancelados`. El turno no reaparece en `GET /api/turnos` hasta una republicación manual del administrador.
+- `Reserva.cuposOcupados` queda como dato histórico: no se sincroniza con el nuevo listado de inscriptos.
+
+### Endpoints
+
+| Método | Ruta | Acceso | Descripción |
+| --- | --- | --- | --- |
+| `GET` | `/api/partidos` | Cookie | Lista con filtros `categoria`, `estado`, `fecha`, `page`, `limit`; el jugador solo ve `incompleto` |
+| `POST` | `/api/partidos` | Administrador | Alta sobre `reservaId` confirmada y turno `reservado` |
+| `GET` | `/api/partidos/:id` | Cookie | Detalle con inscriptos y huecos; jugador ve el suyo aunque esté completo, `404` si es ajeno |
+| `PATCH` | `/api/partidos/:id` | Administrador | Cambia `categoria` o cierra a `jugado` (solo si está `completo`) |
+| `POST` | `/api/partidos/:id/inscripciones` | Jugador | Inscripción al hueco con bloqueo transaccional |
+| `DELETE` | `/api/partidos/:id/inscripciones/:usuarioId` | Cookie | Baja propia (jugador) o de cualquier inscripto (administrador) |
+| `PATCH` | `/api/partidos/:id/cancelar` | Administrador | Cancelación por falta de quórum; `409` si está `completo` |
+
+### Flujo completo con curl
+
+```bash
+curl -s -c admin-cookies.txt -H "Content-Type: application/json" -d '{"email":"admin@example.com","password":"secreto123"}' http://localhost:3000/api/auth/login
+
+curl -s -c jugador-cookies.txt -H "Content-Type: application/json" -d '{"email":"jugador@example.com","password":"secreto123"}' http://localhost:3000/api/auth/login
+
+J2_EMAIL="qa-sexta-$(date +%s)@example.com"
+curl -s -b admin-cookies.txt -H "Content-Type: application/json" -d "{\"nombre\":\"Jugador QA\",\"email\":\"$J2_EMAIL\",\"password\":\"secreto123\",\"categoria\":\"quinta\",\"posicionHabitual\":\"drive\",\"manoDominante\":\"diestro\",\"sexo\":\"masculino\",\"telefono\":\"1144444444\",\"rol\":\"jugador\"}" http://localhost:3000/api/users
+curl -s -c jugador2-cookies.txt -H "Content-Type: application/json" -d "{\"email\":\"$J2_EMAIL\",\"password\":\"secreto123\"}" http://localhost:3000/api/auth/login
+
+CANCHA_ID=$(curl -s -b admin-cookies.txt -H "Content-Type: application/json" -d '{"nombre":"Cancha Partido 1"}' http://localhost:3000/api/canchas | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(String(JSON.parse(s).data.id)))")
+FECHA=$(node -e "process.stdout.write(new Date(Date.now() + 8*24*60*60*1000).toISOString())")
+TURNO_ID=$(curl -s -b admin-cookies.txt -H "Content-Type: application/json" -d "{\"canchaId\":$CANCHA_ID,\"fechaHoraInicio\":\"$FECHA\"}" http://localhost:3000/api/turnos | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(String(JSON.parse(s).data.id)))")
+
+RESERVA_ID=$(curl -s -b jugador-cookies.txt -H "Content-Type: application/json" -d "{\"turnoId\":$TURNO_ID,\"cuposOcupados\":1}" http://localhost:3000/api/reservas | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(String(JSON.parse(s).data.id)))")
+curl -s -b admin-cookies.txt -X PATCH "http://localhost:3000/api/reservas/$RESERVA_ID/confirmar"
+
+PARTIDO_ID=$(curl -s -b admin-cookies.txt -H "Content-Type: application/json" -d "{\"reservaId\":$RESERVA_ID,\"categoria\":\"sexta\"}" http://localhost:3000/api/partidos | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(String(JSON.parse(s).data.id)))")
+
+curl -s -b jugador-cookies.txt "http://localhost:3000/api/partidos?categoria=sexta&estado=incompleto"
+curl -s -b jugador-cookies.txt "http://localhost:3000/api/partidos/$PARTIDO_ID"
+
+curl -s -b jugador-cookies.txt -X POST "http://localhost:3000/api/partidos/$PARTIDO_ID/inscripciones"
+curl -s -b jugador2-cookies.txt -X POST "http://localhost:3000/api/partidos/$PARTIDO_ID/inscripciones"
+curl -s -b jugador2-cookies.txt -X DELETE "http://localhost:3000/api/partidos/$PARTIDO_ID/inscripciones/$(curl -s -b jugador2-cookies.txt http://localhost:3000/api/users/me | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(String(JSON.parse(s).data.id)))")"
+
+curl -s -b admin-cookies.txt -X PATCH "http://localhost:3000/api/partidos/$PARTIDO_ID/cancelar"
+curl -s -b jugador-cookies.txt "http://localhost:3000/api/turnos?canchaId=$CANCHA_ID"
+```
+
+El detalle del partido informa `lugaresOcupados`/`lugaresFaltantes` en cada paso. Después de la cancelación, `partidos`, `reservas` y `turnos` quedan con estado `cancelado`/`cancelada` y el turno no aparece en el último listado.
+
 ## Estructura
 
 ```
@@ -278,7 +345,8 @@ src/
 │   ├── user.controller.js
 │   ├── cancha.controller.js
 │   ├── turno.controller.js
-│   └── reserva.controller.js
+│   ├── reserva.controller.js
+│   └── partido.controller.js
 ├── middlewares/
 │   ├── notFound.js           # 404 JSON
 │   ├── errorHandler.js       # Manejo global de errores
@@ -288,27 +356,32 @@ src/
 │   ├── User.js               # Modelo Usuario (tabla usuarios)
 │   ├── Cancha.js             # Modelo Cancha (tabla canchas)
 │   ├── Turno.js              # Modelo Turno (tabla turnos)
-│   └── Reserva.js            # Modelo Reserva (tabla reservas)
+│   ├── Reserva.js            # Modelo Reserva (tabla reservas)
+│   ├── Partido.js            # Modelo Partido (tabla partidos)
+│   └── Inscripcion.js        # Modelo Inscripcion (tabla inscripciones)
 ├── routes/
 │   ├── health.routes.js
 │   ├── auth.routes.js
 │   ├── user.routes.js
 │   ├── cancha.routes.js
 │   ├── turno.routes.js
-│   └── reserva.routes.js
+│   ├── reserva.routes.js
+│   └── partido.routes.js
 ├── services/
 │   ├── auth.service.js
 │   ├── user.service.js
 │   ├── cancha.service.js
 │   ├── turno.service.js
-│   └── reserva.service.js
+│   ├── reserva.service.js
+│   └── partido.service.js
 └── utils/
     ├── AppError.js           # Error de aplicación con statusCode
     ├── asyncHandler.js       # Wrapper para controladores async
     ├── userValidation.js     # Enums, validación de payloads y parseo de query
     ├── canchaValidation.js
     ├── turnoValidation.js
-    └── reservaValidation.js
+    ├── reservaValidation.js
+    └── partidoValidation.js
 ```
 
 ## Manejo de errores

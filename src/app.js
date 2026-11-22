@@ -14,6 +14,7 @@ import { userRouter } from './routes/user.routes.js';
 import { canchaRouter } from './routes/cancha.routes.js';
 import { turnoRouter } from './routes/turno.routes.js';
 import { reservaRouter } from './routes/reserva.routes.js';
+import { partidoRouter } from './routes/partido.routes.js';
 import { notFound } from './middlewares/notFound.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 
@@ -54,6 +55,7 @@ app.use('/api/users', userRouter);
 app.use('/api/canchas', canchaRouter);
 app.use('/api/turnos', turnoRouter);
 app.use('/api/reservas', reservaRouter);
+app.use('/api/partidos', partidoRouter);
 
 app.use(notFound);
 app.use(errorHandler);
