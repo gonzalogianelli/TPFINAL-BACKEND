@@ -6,6 +6,7 @@ import {
   validateUpdateUserPayload,
   parseUserListQuery,
 } from '../utils/userValidation.js';
+import { notifyUserRegistered } from './notification.service.js';
 
 const isUniqueConstraintError = (error) => error?.name === 'SequelizeUniqueConstraintError';
 
@@ -74,12 +75,14 @@ const listUsers = async (query) => {
   return { rows, count, page, limit };
 };
 
-const createUser = async (payload) => {
+const createUser = async (payload, deps = {}) => {
   const data = validateCreateUserPayload(payload, { allowRole: true });
   await ensureEmailAvailable(data.email);
 
   try {
-    return await User.create(data);
+    const user = await User.create(data);
+    notifyUserRegistered(user, deps);
+    return user;
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       throw new AppError('El email ya esta registrado', 409);

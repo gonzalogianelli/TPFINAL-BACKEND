@@ -275,7 +275,7 @@ router.patch('/:id', authenticate, requireRole('administrador'), update);
  * /api/partidos/{id}/inscripciones:
  *   post:
  *     summary: Inscripcion de un jugador a un hueco
- *     description: Valida cupo, categoria compatible y turno reservado con bloqueo transaccional.
+ *     description: Valida cupo, categoria compatible y turno reservado con bloqueo transaccional, y envia aviso de inscripcion al jugador y a los administradores.
  *     tags: [Partidos]
  *     security:
  *       - cookieAuth: []
@@ -332,7 +332,7 @@ router.post('/:id/inscripciones', authenticate, requireRole('jugador'), inscribi
  * /api/partidos/{id}/inscripciones/{usuarioId}:
  *   delete:
  *     summary: Baja de un jugador del partido
- *     description: El jugador solo puede borrar su propia inscripcion; el administrador cualquier inscripcion.
+ *     description: El jugador solo puede borrar su propia inscripcion y el administrador cualquier inscripcion; en ambos casos se envia aviso de baja.
  *     tags: [Partidos]
  *     security:
  *       - cookieAuth: []
@@ -396,7 +396,7 @@ router.delete('/:id/inscripciones/:usuarioId', authenticate, baja);
  * /api/partidos/{id}/cancelar:
  *   patch:
  *     summary: Cancelacion por falta de quórum
- *     description: Desvincula jugadores, cancela partido, reserva y turno sin republicacion automatica.
+ *     description: Desvincula jugadores, cancela partido, reserva y turno sin republicacion automatica, y envia aviso a inscriptos y administradores.
  *     tags: [Partidos]
  *     security:
  *       - cookieAuth: []

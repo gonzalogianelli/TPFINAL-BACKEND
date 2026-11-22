@@ -10,6 +10,12 @@ import {
   lugaresFaltantes,
   esCompleta,
 } from '../utils/reservaValidation.js';
+import {
+  notifyReservaSolicitada,
+  notifyReservaConfirmada,
+  notifyReservaRechazada,
+  notifyReservaCancelada,
+} from './notification.service.js';
 
 const serializeReserva = (reserva) => ({
   ...reserva.toJSON(),
@@ -54,10 +60,10 @@ const listReservas = async (query, user) => {
   return { rows: rows.map(serializeReserva), count, page, limit };
 };
 
-const crearReserva = async (payload, user) => {
+const crearReserva = async (payload, user, deps = {}) => {
   const data = validateCreateReservaPayload(payload);
 
-  return sequelize.transaction(async (transaction) => {
+  const reserva = await sequelize.transaction(async (transaction) => {
     const turno = await Turno.findByPk(data.turnoId, {
       transaction,
       lock: Transaction.LOCK.UPDATE,
@@ -83,7 +89,7 @@ const crearReserva = async (payload, user) => {
       throw new AppError('El turno ya tiene una solicitud activa', 409);
     }
 
-    const reserva = await Reserva.create(
+    const nuevaReserva = await Reserva.create(
       {
         turnoId: data.turnoId,
         usuarioId: user.id,
@@ -95,8 +101,11 @@ const crearReserva = async (payload, user) => {
 
     await turno.update({ estado: 'reservado' }, { transaction });
 
-    return serializeReserva(reserva);
+    return serializeReserva(nuevaReserva);
   });
+
+  notifyReservaSolicitada(reserva, user, deps);
+  return reserva;
 };
 
 const findReservaForDecision = async (value, transaction) => {
@@ -126,44 +135,56 @@ const findTurnoForDecision = async (turnoId, transaction) => {
   return turno;
 };
 
-const confirmarReserva = async (value) =>
-  sequelize.transaction(async (transaction) => {
-    const reserva = await findReservaForDecision(value, transaction);
-    if (reserva.estado !== 'pendiente') {
+const confirmarReserva = async (value, deps = {}) => {
+  const reserva = await sequelize.transaction(async (transaction) => {
+    const reservaEncontrada = await findReservaForDecision(value, transaction);
+    if (reservaEncontrada.estado !== 'pendiente') {
       throw new AppError('La reserva no esta pendiente', 409);
     }
 
-    await reserva.update({ estado: 'confirmada' }, { transaction });
-    return serializeReserva(reserva);
+    await reservaEncontrada.update({ estado: 'confirmada' }, { transaction });
+    return serializeReserva(reservaEncontrada);
   });
 
-const rechazarReserva = async (value) =>
-  sequelize.transaction(async (transaction) => {
-    const reserva = await findReservaForDecision(value, transaction);
-    if (reserva.estado !== 'pendiente') {
+  notifyReservaConfirmada(reserva, deps);
+  return reserva;
+};
+
+const rechazarReserva = async (value, deps = {}) => {
+  const reserva = await sequelize.transaction(async (transaction) => {
+    const reservaEncontrada = await findReservaForDecision(value, transaction);
+    if (reservaEncontrada.estado !== 'pendiente') {
       throw new AppError('La reserva no esta pendiente', 409);
     }
 
-    const turno = await findTurnoForDecision(reserva.turnoId, transaction);
-    await reserva.update({ estado: 'rechazada' }, { transaction });
+    const turno = await findTurnoForDecision(reservaEncontrada.turnoId, transaction);
+    await reservaEncontrada.update({ estado: 'rechazada' }, { transaction });
     await turno.update({ estado: 'disponible' }, { transaction });
 
-    return serializeReserva(reserva);
+    return serializeReserva(reservaEncontrada);
   });
 
-const cancelarReserva = async (value) =>
-  sequelize.transaction(async (transaction) => {
-    const reserva = await findReservaForDecision(value, transaction);
-    if (reserva.estado !== 'confirmada') {
+  notifyReservaRechazada(reserva, deps);
+  return reserva;
+};
+
+const cancelarReserva = async (value, deps = {}) => {
+  const reserva = await sequelize.transaction(async (transaction) => {
+    const reservaEncontrada = await findReservaForDecision(value, transaction);
+    if (reservaEncontrada.estado !== 'confirmada') {
       throw new AppError('Solo se puede cancelar una reserva confirmada', 409);
     }
 
-    const turno = await findTurnoForDecision(reserva.turnoId, transaction);
-    await reserva.update({ estado: 'cancelada' }, { transaction });
+    const turno = await findTurnoForDecision(reservaEncontrada.turnoId, transaction);
+    await reservaEncontrada.update({ estado: 'cancelada' }, { transaction });
     await turno.update({ estado: 'cancelado' }, { transaction });
 
-    return serializeReserva(reserva);
+    return serializeReserva(reservaEncontrada);
   });
+
+  notifyReservaCancelada(reserva, deps);
+  return reserva;
+};
 
 const actualizarCupos = async (value, payload) => {
   const updates = validateUpdateCuposPayload(payload);

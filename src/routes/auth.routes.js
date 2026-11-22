@@ -8,7 +8,7 @@ const router = Router();
  * /api/auth/register:
  *   post:
  *     summary: Registro publico de jugador
- *     description: Crea un usuario con rol jugador e inicia sesion con una cookie HTTPOnly.
+ *     description: Crea un usuario con rol jugador, inicia sesion con una cookie HTTPOnly y envia un correo de confirmacion al nuevo usuario.
  *     tags: [Auth]
  *     requestBody:
  *       required: true

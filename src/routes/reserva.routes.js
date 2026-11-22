@@ -104,7 +104,7 @@ router.get('/', authenticate, list);
  * /api/reservas:
  *   post:
  *     summary: Solicitud de reserva por un jugador
- *     description: Crea la solicitud en pendiente y pasa el turno a reservado.
+ *     description: Crea la solicitud en pendiente, pasa el turno a reservado y envia aviso de solicitud al jugador y a los administradores.
  *     tags: [Reservas]
  *     security:
  *       - cookieAuth: []
@@ -227,6 +227,7 @@ router.patch('/:id', authenticate, requireRole('administrador'), updateCupos);
  * /api/reservas/{id}/confirmar:
  *   patch:
  *     summary: Confirmacion de una reserva pendiente
+ *     description: Confirma la reserva, mantiene el turno reservado y envia aviso de confirmacion.
  *     tags: [Reservas]
  *     security:
  *       - cookieAuth: []
@@ -283,7 +284,7 @@ router.patch('/:id/confirmar', authenticate, requireRole('administrador'), confi
  * /api/reservas/{id}/rechazar:
  *   patch:
  *     summary: Rechazo de una reserva pendiente
- *     description: Devuelve el turno a disponible.
+ *     description: Devuelve el turno a disponible y envia aviso de rechazo.
  *     tags: [Reservas]
  *     security:
  *       - cookieAuth: []
@@ -340,7 +341,7 @@ router.patch('/:id/rechazar', authenticate, requireRole('administrador'), rechaz
  * /api/reservas/{id}/cancelar:
  *   patch:
  *     summary: Cancelacion de una reserva confirmada
- *     description: Deja el turno en cancelado y exige republicacion manual.
+ *     description: Deja el turno en cancelado, exige republicacion manual y envia aviso de cancelacion.
  *     tags: [Reservas]
  *     security:
  *       - cookieAuth: []

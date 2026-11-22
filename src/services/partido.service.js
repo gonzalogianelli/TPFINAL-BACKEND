@@ -20,6 +20,11 @@ import {
   parseUsuarioId,
   parsePartidoListQuery,
 } from '../utils/partidoValidation.js';
+import {
+  notifyPartidoInscripcion,
+  notifyPartidoBaja,
+  notifyPartidoCanceladoQuorum,
+} from './notification.service.js';
 
 const buildIncludePartido = () => [
   {
@@ -229,22 +234,22 @@ const actualizarPartido = async (value, payload) => {
   });
 };
 
-const inscribirJugador = async (value, user) => {
+const inscribirJugador = async (value, user, deps = {}) => {
   const partidoId = parsePartidoId(value);
 
-  return sequelize.transaction(async (transaction) => {
-    const partido = await Partido.findByPk(partidoId, {
+  const partido = await sequelize.transaction(async (transaction) => {
+    const partidoEncontrado = await Partido.findByPk(partidoId, {
       transaction,
       lock: Transaction.LOCK.UPDATE,
     });
-    if (!partido) {
+    if (!partidoEncontrado) {
       throw new AppError('Partido no encontrado', 404);
     }
-    if (partido.estado !== 'incompleto') {
+    if (partidoEncontrado.estado !== 'incompleto') {
       throw new AppError('El partido no admite nuevas inscripciones', 409);
     }
 
-    const reserva = await Reserva.findByPk(partido.reservaId, {
+    const reserva = await Reserva.findByPk(partidoEncontrado.reservaId, {
       transaction,
       lock: Transaction.LOCK.UPDATE,
     });
@@ -260,7 +265,7 @@ const inscribirJugador = async (value, user) => {
       throw new AppError('El turno del partido no esta reservado', 409);
     }
 
-    validarCompatibilidadCategoria(user.categoria, partido.categoria);
+    validarCompatibilidadCategoria(user.categoria, partidoEncontrado.categoria);
 
     const duplicado = await Inscripcion.findOne({
       where: { partidoId, usuarioId: user.id },
@@ -285,14 +290,17 @@ const inscribirJugador = async (value, user) => {
     }
 
     if (ocupados + 1 === CUPO_MAXIMO_PARTIDO) {
-      await partido.update({ estado: 'completo' }, { transaction });
+      await partidoEncontrado.update({ estado: 'completo' }, { transaction });
     }
 
     return serializePartido(await findPartido(partidoId, transaction));
   });
+
+  notifyPartidoInscripcion(partido, user, deps);
+  return partido;
 };
 
-const darDeBaja = async (partidoValue, usuarioValue, user) => {
+const darDeBaja = async (partidoValue, usuarioValue, user, deps = {}) => {
   const partidoId = parsePartidoId(partidoValue);
   const usuarioId = parseUsuarioId(usuarioValue);
 
@@ -300,12 +308,12 @@ const darDeBaja = async (partidoValue, usuarioValue, user) => {
     throw new AppError('No autorizado para quitar otra inscripcion', 403);
   }
 
-  return sequelize.transaction(async (transaction) => {
-    const partido = await Partido.findByPk(partidoId, {
+  const partido = await sequelize.transaction(async (transaction) => {
+    const partidoEncontrado = await Partido.findByPk(partidoId, {
       transaction,
       lock: Transaction.LOCK.UPDATE,
     });
-    if (!partido) {
+    if (!partidoEncontrado) {
       throw new AppError('Partido no encontrado', 404);
     }
 
@@ -319,30 +327,34 @@ const darDeBaja = async (partidoValue, usuarioValue, user) => {
 
     await inscripcion.destroy({ transaction });
     const ocupados = await Inscripcion.count({ where: { partidoId }, transaction });
-    if (partido.estado === 'completo' && ocupados < CUPO_MAXIMO_PARTIDO) {
-      await partido.update({ estado: 'incompleto' }, { transaction });
+    if (partidoEncontrado.estado === 'completo' && ocupados < CUPO_MAXIMO_PARTIDO) {
+      await partidoEncontrado.update({ estado: 'incompleto' }, { transaction });
     }
 
     return serializePartido(await findPartido(partidoId, transaction));
   });
+
+  notifyPartidoBaja(partido, usuarioId, deps);
+  return partido;
 };
 
-const cancelarPorQuorum = async (value) => {
+const cancelarPorQuorum = async (value, deps = {}) => {
   const partidoId = parsePartidoId(value);
+  let inscriptos = [];
 
-  return sequelize.transaction(async (transaction) => {
-    const partido = await Partido.findByPk(partidoId, {
+  const partido = await sequelize.transaction(async (transaction) => {
+    const partidoEncontrado = await Partido.findByPk(partidoId, {
       transaction,
       lock: Transaction.LOCK.UPDATE,
     });
-    if (!partido) {
+    if (!partidoEncontrado) {
       throw new AppError('Partido no encontrado', 404);
     }
-    if (partido.estado !== 'incompleto') {
+    if (partidoEncontrado.estado !== 'incompleto') {
       throw new AppError('Solo se puede cancelar por quorum un partido incompleto', 409);
     }
 
-    const reserva = await Reserva.findByPk(partido.reservaId, {
+    const reserva = await Reserva.findByPk(partidoEncontrado.reservaId, {
       transaction,
       lock: Transaction.LOCK.UPDATE,
     });
@@ -357,13 +369,23 @@ const cancelarPorQuorum = async (value) => {
       throw new AppError('Turno no encontrado', 404);
     }
 
+    const inscripciones = await Inscripcion.findAll({ where: { partidoId }, transaction });
+    inscriptos = (
+      await Promise.all(
+        inscripciones.map((inscripcion) => User.findByPk(inscripcion.usuarioId, { transaction })),
+      )
+    ).filter(Boolean);
+
     await Inscripcion.destroy({ where: { partidoId }, transaction });
-    await partido.update({ estado: 'cancelado' }, { transaction });
+    await partidoEncontrado.update({ estado: 'cancelado' }, { transaction });
     await reserva.update({ estado: 'cancelada' }, { transaction });
     await turno.update({ estado: 'cancelado' }, { transaction });
 
     return serializePartido(await findPartido(partidoId, transaction));
   });
+
+  notifyPartidoCanceladoQuorum(partido, inscriptos, deps);
+  return partido;
 };
 
 export {

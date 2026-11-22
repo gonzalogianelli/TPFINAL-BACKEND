@@ -1,6 +1,6 @@
 # Sistema de Gestión de Complejo de Pádel — Backend
 
-API REST para un complejo de pádel. Estado actual: base del backend (Módulo 0), autenticación/roles/usuarios (Módulo 1) y gestión de canchas, turnos de 90 minutos y reservas (Módulo 2). Los partidos incompletos se incorporarán en un módulo posterior.
+API REST para un complejo de pádel. Estado actual: base del backend (Módulo 0), autenticación/roles/usuarios (Módulo 1), gestión de canchas, turnos de 90 minutos y reservas (Módulo 2), partidos incompletos (Módulo 3) y notificaciones por correo (Módulo 4).
 
 ## Stack
 
@@ -10,6 +10,7 @@ API REST para un complejo de pádel. Estado actual: base del backend (Módulo 0)
 - Autenticación con **JWT** en cookie **HTTPOnly** y contraseñas hasheadas con **bcryptjs**.
 - Seguridad y observabilidad: `helmet`, `cors` con credenciales, `express-rate-limit`, `cookie-parser`, `pino` y `pino-http`.
 - Documentación OpenAPI con `swagger-jsdoc` + `swagger-ui-express`.
+- Correos transaccionales con `nodemailer` sobre SMTP configurable.
 - Variables de entorno con `dotenv`.
 
 ## Requisitos
@@ -47,7 +48,12 @@ cp .env.example .env
 | `CLIENT_URL` | Origen permitido por CORS | No (default `http://localhost:5173`) |
 | `RATE_LIMIT_WINDOW_MS` | Ventana del rate limit en ms | No (default `900000`) |
 | `RATE_LIMIT_MAX` | Máximo de peticiones por ventana | No (default `100`) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Configuración SMTP para Nodemailer | No (si faltan, el correo queda deshabilitado) |
+| `SMTP_HOST` | Host del servidor SMTP | No (si falta, el correo queda deshabilitado) |
+| `SMTP_PORT` | Puerto SMTP | No (default `587`) |
+| `SMTP_SECURE` | `true` para SMTPS; `false` para STARTTLS | No (default `false`) |
+| `SMTP_USER` | Usuario SMTP | No |
+| `SMTP_PASS` | Contraseña SMTP | No |
+| `SMTP_FROM` | Remitente de los correos | No (si falta, el correo queda deshabilitado) |
 
 > `.env` está ignorado por Git. Nunca se deben versionar secretos reales. Si `JWT_SECRET` falta, el arranque falla con `Falta la variable de entorno requerida: JWT_SECRET`.
 
@@ -65,7 +71,7 @@ Modo producción:
 npm start
 ```
 
-El servidor valida la configuración, se conecta a MySQL, sincroniza los modelos (creando las tablas `usuarios`, `canchas`, `turnos` y `reservas` si no existen) y recién entonces escucha en `PORT`. Si la conexión inicial a MySQL o la sincronización fallan, el proceso termina con código 1. Las variables SMTP incompletas no impiden el arranque.
+El servidor valida la configuración, se conecta a MySQL, sincroniza los modelos (creando las tablas `usuarios`, `canchas`, `turnos`, `reservas`, `partidos` e `inscripciones` si no existen) y recién entonces escucha en `PORT`. Si la conexión inicial a MySQL o la sincronización fallan, el proceso termina con código 1. Las variables SMTP incompletas no impiden el arranque: se registra un aviso y el envío de correos queda deshabilitado, sin ejecutar `verify()` contra el proveedor.
 
 ## Verificación del estado
 
@@ -259,7 +265,7 @@ curl -s -b admin-cookies.txt -X PATCH -H "Content-Type: application/json" -d '{"
 curl -s -b jugador-cookies.txt "http://localhost:3000/api/turnos?canchaId=$CANCHA_ID"
 ```
 
-El primer listado de turnos incluye el turno nuevo; luego de la cancelación no lo incluye; después de la republicación vuelve a incluirlo. Los envíos SMTP quedan para el módulo de notificaciones.
+El primer listado de turnos incluye el turno nuevo; luego de la cancelación no lo incluye; después de la republicación vuelve a incluirlo. Cada transición exitosa dispara su aviso por correo según el Módulo 4.
 
 ## Módulo 3: partidos incompletos
 
@@ -328,6 +334,23 @@ curl -s -b jugador-cookies.txt "http://localhost:3000/api/turnos?canchaId=$CANCH
 
 El detalle del partido informa `lugaresOcupados`/`lugaresFaltantes` en cada paso. Después de la cancelación, `partidos`, `reservas` y `turnos` quedan con estado `cancelado`/`cancelada` y el turno no aparece en el último listado.
 
+## Módulo 4: notificaciones por correo
+
+Los eventos de negocio exitosos envían correos transaccionales con `nodemailer`. No se agregaron endpoints: los avisos son efectos colaterales de las operaciones ya documentadas. Cada mensaje se arma con plantillas propias (`subject`, `text`, `html`), escapa valores interpolados y nunca incluye passwords, hashes, JWT ni credenciales SMTP.
+
+| Evento | Operación que lo dispara | Destinatarios |
+| --- | --- | --- |
+| Confirmación de registro | `POST /api/auth/register` o `POST /api/users` | Nuevo jugador |
+| Solicitud de reserva | `POST /api/reservas` | Jugador solicitante y administradores |
+| Confirmación, rechazo o cancelación de reserva | `PATCH /api/reservas/:id/confirmar`, `/rechazar` o `/cancelar` | Jugador titular y administradores |
+| Inscripción a partido | `POST /api/partidos/:id/inscripciones` | Jugador inscripto y administradores |
+| Baja de partido | `DELETE /api/partidos/:id/inscripciones/:usuarioId` | Jugador afectado y administradores |
+| Cancelación por quórum | `PATCH /api/partidos/:id/cancelar` | Inscriptos previos y administradores |
+
+El envío se despacha después de confirmar la transacción y sin `await` en el camino de la request. Si SMTP falla o no está configurado, se registra un aviso con Pino (evento, cantidad de destinatarios y mensaje de error) y la respuesta HTTP, los estados y las transacciones no cambian. No hay reintentos ni historial persistente.
+
+Modo sin SMTP: dejar `SMTP_HOST` o `SMTP_FROM` vacíos. El servidor inicia normalmente, `/api/health` responde `200` y los eventos omiten el envío. Los administradores se resuelven desde DB con `rol: 'administrador'`; si no hay ninguno, el aviso llega solo al jugador involucrado.
+
 ## Estructura
 
 ```
@@ -373,7 +396,12 @@ src/
 │   ├── cancha.service.js
 │   ├── turno.service.js
 │   ├── reserva.service.js
-│   └── partido.service.js
+│   ├── partido.service.js
+│   ├── mail.service.js
+│   └── notification.service.js
+├── templates/
+│   └── email/
+│       └── index.js        # Plantillas de correo con escape HTML
 └── utils/
     ├── AppError.js           # Error de aplicación con statusCode
     ├── asyncHandler.js       # Wrapper para controladores async

@@ -4,12 +4,13 @@ import { config } from '../config/env.js';
 import { User } from '../models/User.js';
 import { AppError } from '../utils/AppError.js';
 import { validateCreateUserPayload } from '../utils/userValidation.js';
+import { notifyUserRegistered } from './notification.service.js';
 
 const invalidCredentials = () => new AppError('Credenciales invalidas', 401);
 
 const isUniqueConstraintError = (error) => error?.name === 'SequelizeUniqueConstraintError';
 
-const registerUser = async (payload) => {
+const registerUser = async (payload, deps = {}) => {
   const data = validateCreateUserPayload(payload, { allowRole: false });
 
   const existing = await User.findOne({ where: { email: data.email } });
@@ -18,7 +19,9 @@ const registerUser = async (payload) => {
   }
 
   try {
-    return await User.create({ ...data, rol: 'jugador' });
+    const user = await User.create({ ...data, rol: 'jugador' });
+    notifyUserRegistered(user, deps);
+    return user;
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       throw new AppError('El email ya esta registrado', 409);

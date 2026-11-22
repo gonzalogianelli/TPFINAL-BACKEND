@@ -149,7 +149,7 @@ router.get('/', authenticate, requireRole('administrador'), list);
  * /api/users:
  *   post:
  *     summary: Alta de usuarios por el administrador
- *     description: Permite crear jugadores o administradores.
+ *     description: Permite crear jugadores o administradores y envia un correo de confirmacion al nuevo usuario.
  *     tags: [Usuarios]
  *     security:
  *       - cookieAuth: []
