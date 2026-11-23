@@ -171,7 +171,10 @@ const crearPartido = async (payload) => {
       throw new AppError('Solo se puede crear un partido sobre una reserva confirmada', 409);
     }
 
-    const turno = await Turno.findByPk(reserva.turnoId, { transaction });
+    const turno = await Turno.findByPk(reserva.turnoId, {
+      transaction,
+      lock: Transaction.LOCK.UPDATE,
+    });
     if (!turno || turno.estado !== 'reservado') {
       throw new AppError('El turno de la reserva no esta reservado', 409);
     }

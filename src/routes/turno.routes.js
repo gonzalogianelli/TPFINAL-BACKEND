@@ -106,12 +106,6 @@ router.get('/', authenticate, list);
  *           schema:
  *             $ref: '#/components/schemas/TurnoCreateRequest'
  *     responses:
- *       200:
- *         description: Operacion completada
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/SuccessTurnoResponse'
  *       201:
  *         description: Turno creado
  *         content:

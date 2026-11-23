@@ -5,6 +5,14 @@ const MILISEGUNDOS_POR_MINUTO = 60 * 1000;
 const ISO_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
 const FECHA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
+const TRANSICIONES_TURNO = {
+  disponible: ['disponible', 'reservado', 'bloqueado', 'cancelado'],
+  reservado: ['reservado', 'disponible', 'cancelado', 'jugado'],
+  cancelado: ['cancelado', 'disponible'],
+  bloqueado: ['bloqueado', 'disponible', 'cancelado'],
+  jugado: ['jugado'],
+};
+
 const fail = (message) => {
   throw new AppError(message, 400);
 };
@@ -41,6 +49,11 @@ const estadoValue = (value) => {
   }
   return value;
 };
+
+const transicionesPermitidasPara = (estado) => TRANSICIONES_TURNO[estado] ?? [];
+
+const esTransicionTurnoValida = (estadoActual, estadoNuevo) =>
+  transicionesPermitidasPara(estadoActual).includes(estadoNuevo);
 
 const fechaValue = (value) => {
   if (typeof value !== 'string' || !FECHA_REGEX.test(value)) {
@@ -105,4 +118,6 @@ export {
   validateUpdateTurnoPayload,
   parseTurnoId,
   parseTurnoListQuery,
+  transicionesPermitidasPara,
+  esTransicionTurnoValida,
 };

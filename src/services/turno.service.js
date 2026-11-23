@@ -8,7 +8,14 @@ import {
   validateUpdateTurnoPayload,
   parseTurnoId,
   parseTurnoListQuery,
+  esTransicionTurnoValida,
 } from '../utils/turnoValidation.js';
+
+const MENSAJES_RESERVA_ACTIVA = {
+  disponible: 'No se puede republicar un turno con una reserva pendiente o confirmada',
+  bloqueado: 'No se puede bloquear un turno con una reserva pendiente o confirmada',
+  cancelado: 'No se puede cancelar un turno con una reserva pendiente o confirmada',
+};
 
 const ensureSinSolape = async (canchaId, inicio, fin, transaction, excludeId) => {
   const where = {
@@ -114,22 +121,23 @@ const updateTurno = async (value, payload) => {
       throw new AppError('Turno no encontrado', 404);
     }
 
-    if (updates.estado === 'bloqueado' && turno.estado !== 'bloqueado') {
-      const reservasActivas = await Reserva.count({
-        where: { turnoId: turno.id, estado: { [Op.in]: RESERVAS_ACTIVAS } },
-        transaction,
-      });
-      if (reservasActivas > 0) {
-        throw new AppError('No se puede bloquear un turno con una reserva pendiente o confirmada', 409);
-      }
+    if (updates.estado !== undefined && !esTransicionTurnoValida(turno.estado, updates.estado)) {
+      throw new AppError('Transicion de estado del turno no permitida', 409);
     }
 
     if (
-      updates.estado === 'disponible' &&
-      turno.estado !== 'cancelado' &&
-      turno.estado !== 'disponible'
+      MENSAJES_RESERVA_ACTIVA[updates.estado] &&
+      updates.estado !== turno.estado
     ) {
-      throw new AppError('Solo se puede republicar un turno cancelado', 409);
+      const reservasActivas = await Reserva.findAll({
+        where: { turnoId: turno.id, estado: { [Op.in]: RESERVAS_ACTIVAS } },
+        attributes: ['id'],
+        transaction,
+        lock: Transaction.LOCK.UPDATE,
+      });
+      if (reservasActivas.length > 0) {
+        throw new AppError(MENSAJES_RESERVA_ACTIVA[updates.estado], 409);
+      }
     }
 
     const cancha = await Cancha.findByPk(turno.canchaId, {

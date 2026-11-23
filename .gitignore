@@ -155,3 +155,7 @@ vite.config.ts.timestamp-*
 .nx/cache
 .nx/workspace-data
 .nx/migrate-runs
+
+# QA temporal files
+*cookies*.txt
+qa-temp/

@@ -28,14 +28,22 @@ app.use(cors({ origin: config.cors.origin, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(pinoHttp({ logger }));
+app.use(
+  pinoHttp({
+    logger,
+    redact: {
+      paths: ['req.headers.cookie', 'res.headers["set-cookie"]', 'req.headers.authorization'],
+      censor: '[REDACTED]',
+    },
+  }),
+);
 
 const limiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.max,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === '/api/health',
+  skip: (req) => /^\/api\/health\/?$/.test(req.path),
   handler: (req, res) => {
     res.status(429).json({
       status: 'error',

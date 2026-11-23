@@ -158,6 +158,10 @@ const rechazarReserva = async (value, deps = {}) => {
     }
 
     const turno = await findTurnoForDecision(reservaEncontrada.turnoId, transaction);
+    if (turno.estado !== 'reservado') {
+      throw new AppError('El turno ya no esta reservado', 409);
+    }
+
     await reservaEncontrada.update({ estado: 'rechazada' }, { transaction });
     await turno.update({ estado: 'disponible' }, { transaction });
 

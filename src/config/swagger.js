@@ -53,10 +53,13 @@ const options = {
     },
     servers: [{ url: `http://localhost:${config.server.port}`, description: 'Servidor local' }],
     tags: [
+      { name: 'Auth', description: 'Registro, inicio de sesion y cierre de sesion' },
+      { name: 'Usuarios', description: 'Gestion del perfil y alta de jugadores' },
       { name: 'Canchas', description: 'Gestion del inventario de canchas' },
       { name: 'Turnos', description: 'Carga manual de turnos de 90 minutos' },
       { name: 'Reservas', description: 'Solicitudes, cupos y decisiones de reserva' },
       { name: 'Partidos', description: 'Partidos incompletos, huecos e inscripcion de jugadores' },
+      { name: 'Health', description: 'Consultas de disponibilidad del servidor' },
     ],
     components: {
       securitySchemes: {
@@ -68,6 +71,15 @@ const options = {
       },
       schemas: {
         Usuario: usuarioSchema,
+        HealthStatus: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['ok', 'degraded'], example: 'ok' },
+            server: { type: 'string', example: 'up' },
+            database: { type: 'string', enum: ['up', 'down'], example: 'up' },
+            timestamp: { type: 'string', format: 'date-time' },
+          },
+        },
         ErrorResponse: {
           type: 'object',
           properties: {

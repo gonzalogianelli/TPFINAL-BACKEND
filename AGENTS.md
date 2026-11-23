@@ -4,7 +4,7 @@
 - **Prohibido improvisar:** Nunca inventes funcionalidades, endpoints, tablas o reglas que no estén en este archivo, en las skills de `.opencode/skills/` o en la spec aprobada del módulo activo.
 - **Orden estricto (Spec -> Plan -> Código):** Nunca escribas código de aplicación (`src/`) sin haber generado primero `proposal.md`, `design.md`, `specs/` y `tasks.md` mediante OpenSpec y haber recibido aprobación explícita del usuario.
 - **Aislamiento por módulo:** Trabajar estrictamente **un módulo a la vez** (Módulo 0 -> Módulo 1 -> Módulo 2 -> Módulo 3 -> Módulo 4 -> Módulo 5). No modifiques ni adelantes código de módulos futuros.
-- **Uso obligatorio de Skills:** Antes de escribir código, aplicar siempre las reglas definidas en `.opencode/skills/` (`express-esm-mysql`, `auth-rbac`, `padel-domain`, `swagger-docs`).
+- **Uso obligatorio de Skills:** Antes de escribir código, aplicar siempre las reglas definidas en `.opencode/skills/` (`express-esm-mysql`, `auth-rbac`, `padel-domain`, `swagger-docs`, `padel-backend-qa`).
 
 ## 2. Stack Tecnológico Obligatorio
 - **Runtime:** Node.js con JavaScript puro y **módulos ESM** (`import` / `export`, `"type": "module"` en `package.json`). Prohibido `require` o `module.exports`.
@@ -15,7 +15,7 @@
 - **Requisitos académicos:** Uso explícito de `req.params` y `req.query` en endpoints reales, middlewares de autorización por rol y `README.md` completo.
 
 ## 3. Reglas de Negocio (Primera Etapa — Un Único Complejo)
-- **Fuera de alcance:** Torneos, cuadros, resultados, rankings, ascensos y multi-complejo.
+- **Fuera de alcance:** Torneos, cuadros, resultados, rankings, ascensos, multi-complejo y recuperación de contraseña (decisión registrada en la spec `email-notifications`).
 - **Roles (2):**
   - `administrador` (engloba a dueño o empleado del complejo): gestiona canchas, turnos, bloqueos, solicitudes/reservas, cancelaciones, republicaciones, partidos incompletos y jugadores.
   - `jugador`: consulta turnos disponibles, solicita reservas, consulta/anota en partidos incompletos y gestiona su perfil.
@@ -37,4 +37,4 @@
   - Categorías compatibles: categoría del partido y hasta **1 categoría de diferencia** (ej. en `octava` entran `octava` y `séptima`).
   - Concurrencia: ante inscripciones simultáneas al último lugar, gana la primera procesada con transacción y bloqueo en MySQL (`Transaction.LOCK.UPDATE`).
   - Si no se completan los 4 jugadores con **1 hora de anticipación**, el administrador cancela el turno y los jugadores quedan desvinculados.
-- **Emails (Nodemailer):** Confirmación de registro, recuperación de contraseña, aviso de solicitud de reserva, confirmación o rechazo de solicitud, y aviso de cancelación de turno.
+- **Emails (Nodemailer):** Confirmación de registro, aviso de solicitud de reserva, confirmación o rechazo de solicitud, y aviso de cancelación de turno. La recuperación de contraseña está fuera de alcance según la decisión registrada en `email-notifications`.

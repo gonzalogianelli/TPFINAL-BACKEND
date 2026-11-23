@@ -115,12 +115,6 @@ router.get('/', authenticate, list);
  *           schema:
  *             $ref: '#/components/schemas/ReservaCreateRequest'
  *     responses:
- *       200:
- *         description: Operacion completada
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/SuccessReservaResponse'
  *       201:
  *         description: Solicitud creada
  *         content:

@@ -91,12 +91,6 @@ router.get('/', authenticate, list);
  *           schema:
  *             $ref: '#/components/schemas/CanchaCreateRequest'
  *     responses:
- *       200:
- *         description: Operacion completada
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/SuccessCanchaResponse'
  *       201:
  *         description: Cancha creada
  *         content:
