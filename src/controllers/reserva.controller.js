@@ -6,6 +6,7 @@ import {
   rechazarReserva,
   cancelarReserva,
   actualizarCupos,
+  deleteReserva,
 } from '../services/reserva.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -48,4 +49,9 @@ const cancelar = asyncHandler(async (req, res) => {
   return res.status(200).json({ status: 'success', data: reserva });
 });
 
-export { list, getById, create, updateCupos, confirmar, rechazar, cancelar };
+const remove = asyncHandler(async (req, res) => {
+  const reserva = await deleteReserva(req.params.id);
+  return res.status(200).json({ status: 'success', data: reserva });
+});
+
+export { list, getById, create, updateCupos, confirmar, rechazar, cancelar, remove };

@@ -74,12 +74,17 @@ User.init(
       allowNull: false,
       defaultValue: 'jugador',
     },
+    deletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
     modelName: 'User',
     tableName: 'usuarios',
     timestamps: true,
+    paranoid: true,
     defaultScope: {
       attributes: { exclude: ['password'] },
     },

@@ -7,15 +7,15 @@ Permite que una persona se registre como jugador, inicie y cierre sesión con cr
 ## Requirements
 
 ### Requirement: Registro público de jugadores
-El sistema SHALL permitir el autorregistro público con `nombre`, `email`, `password`, `categoria`, `posicionHabitual`, `manoDominante`, `sexo` y `telefono`, creando siempre un usuario con rol `jugador` y sin exigir verificación de correo para operar.
+El sistema SHALL permitir el autorregistro público con `nombre`, `email`, `password`, `categoria`, `posicionHabitual`, `manoDominante`, `sexo` y `telefono`, creando siempre un usuario con rol `jugador` y sin exigir verificación de correo para operar. El campo `rol` NO SHALL ser aceptado en el cuerpo de esta operación.
 
 #### Scenario: Registro exitoso
 - **WHEN** una persona envía todos los campos obligatorios válidos a `POST /api/auth/register`
 - **THEN** el sistema responde `201`, crea el usuario con rol `jugador` y devuelve sus datos sin la contraseña
 
 #### Scenario: Intento de crear un administrador desde el registro público
-- **WHEN** el cuerpo del registro incluye `rol: "administrador"` o cualquier otro rol
-- **THEN** el sistema ignora ese valor y persiste el usuario con rol `jugador`
+- **WHEN** el cuerpo del registro incluye `rol: "administrador"` o cualquier otro valor de `rol`
+- **THEN** el sistema responde `400` con un error JSON legible, no crea el usuario y el rol no se modifica
 
 #### Scenario: Email ya registrado
 - **WHEN** se registra un `email` que ya pertenece a otro usuario
@@ -91,3 +91,36 @@ El sistema SHALL leer la cookie HTTPOnly, verificar la firma y vigencia del JWT 
 #### Scenario: Token válido
 - **WHEN** la cookie contiene un JWT válido de un usuario existente
 - **THEN** el sistema identifica al usuario y permite procesar la solicitud
+
+### Requirement: Inicio de sesión de usuario dado de baja
+El sistema SHALL rechazar con `401` el inicio de sesión de un usuario que tenga `deletedAt` no nulo, usando el mismo mensaje genérico de credenciales inválidas.
+
+#### Scenario: Login con cuenta bajada
+- **WHEN** un usuario dado de baja envía su email y contraseña correctos a `POST /api/auth/login`
+- **THEN** el sistema responde `401` con el mensaje genérico de credenciales inválidas y no emite cookie
+
+#### Scenario: Login de otro usuario con el mismo email
+- **WHEN** existe una cuenta bajada con ese email y otra cuenta vigente con distinto email
+- **THEN** solo la cuenta vigente puede iniciar sesión
+
+### Requirement: Sesión de usuario dado de baja
+El sistema SHALL rechazar con `401` cualquier solicitud protegida cuyo JWT corresponda a un usuario dado de baja lógicamente.
+
+#### Scenario: Cookie válida de usuario bajado
+- **WHEN** un cliente envía una cookie con un JWT firmado y vigente de un usuario dado de baja
+- **THEN** el sistema responde `401` y no procesa la operación
+
+#### Scenario: Endpoint protegido posterior
+- **WHEN** un usuario es dado de baja mientras conserva una cookie válida en el cliente
+- **THEN** su próxima solicitud a un endpoint protegido responde `401`
+
+### Requirement: Email reservado tras baja lógica
+El sistema SHALL responder `409` cuando el registro público o el alta por administrador intenten usar el email de un usuario dado de baja.
+
+#### Scenario: Registro público con email bajado
+- **WHEN** una persona intenta registrarse con el email de una cuenta dada de baja
+- **THEN** el sistema responde `409` y no crea el usuario
+
+#### Scenario: Alta administrativa con email bajado
+- **WHEN** un administrador intenta crear un usuario con el email de una cuenta dada de baja
+- **THEN** el sistema responde `409` y no crea el usuario

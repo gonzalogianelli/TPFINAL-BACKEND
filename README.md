@@ -49,6 +49,7 @@ cp .env.example .env
 | `RATE_LIMIT_WINDOW_MS` | Ventana del rate limit en ms | No (default `900000`) |
 | `RATE_LIMIT_MAX` | Máximo de peticiones por ventana | No (default `100`) |
 | `TRUST_PROXY` | Confía en `X-Forwarded-For` detrás de proxy (`false`/`0` o `true`/`1`) | No (default `false`) |
+| `ADMIN_NOTIFY_EMAIL` | Destinatario administrativo de avisos; si está vacío se usa `SMTP_USER` solo cuando es un email válido | No |
 | `SMTP_HOST` | Host del servidor SMTP | No (si falta, el correo queda deshabilitado) |
 | `SMTP_PORT` | Puerto SMTP | No (default `587`) |
 | `SMTP_SECURE` | `true` para SMTPS; `false` para STARTTLS | No (default `false`) |
@@ -135,9 +136,11 @@ Tabla `usuarios`, creada por `sequelize.sync()` al iniciar. Restricciones y valo
 
 La contraseña se excluye por defecto de las consultas (`defaultScope`) y de la serialización JSON. `password` debe tener al menos 8 caracteres.
 
+**Roles.** Solo existen `jugador` y `administrador`. El rol `administrador` representa al dueño o empleado del complejo y es el único con acceso a la gestión de usuarios. El registro público no acepta el campo `rol`: enviarlo con cualquier valor responde `400` y no crea el usuario. `POST /api/users` (protegido) es la vía para crear administradores. No se puede degradar al último `administrador`: `PATCH /api/users/:id` responde `409` y conserva el rol si no quedaría ninguno, incluso ante cambios concurrentes.
+
 ## Autenticación y cookie de sesión
 
-- `POST /api/auth/register` es público y **siempre** crea un usuario con rol `jugador`, aunque el body envíe otro `rol`.
+- `POST /api/auth/register` es público y **siempre** crea un usuario con rol `jugador`; el body no debe incluir `rol` y hacerlo responde `400`.
 - `POST /api/auth/login` valida credenciales y emite un JWT con `{ id, rol }`.
 - El JWT se envía únicamente en una cookie HTTPOnly (`padel_token` por defecto), con `SameSite` configurable, `Secure` en producción y `Path=/`. **No se devuelve el token en el body**.
 - El cliente debe conservar y reenviar la cookie (los `curl` de abajo usan `-c`/`-b`). CORS está configurado con `credentials: true`.
@@ -155,17 +158,21 @@ La contraseña se excluye por defecto de las consultas (`defaultScope`) y de la 
 | `GET` | `/api/users` | Administrador | Lista con filtros `rol`, `categoria`, `search`, `page`, `limit` |
 | `POST` | `/api/users` | Administrador | Crea usuario; permite asignar `rol` |
 | `GET` | `/api/users/:id` | Administrador | Consulta por id de ruta; `400` si no es entero positivo, `404` si no existe |
-| `PATCH` | `/api/users/:id` | Administrador | Edita usuario y permite cambiar `rol` |
+| `PATCH` | `/api/users/:id` | Administrador | Edita usuario y permite cambiar `rol`; `409` si se degrade al último administrador |
+| `DELETE` | `/api/users/:id` | Administrador | Baja lógica del usuario; conserva la fila con `deletedAt` y la oculta de listados y detalles |
 
-No hay baja/eliminación de usuarios en este módulo. Un `jugador` recibe `403` en los endpoints de gestión; una solicitud sin cookie recibe `401`.
+La baja de usuarios rechaza al último `administrador` y a quienes tengan reservas o inscripciones activas; devuelve `409` en esos casos. Un usuario dado de baja no puede iniciar sesión, su cookie deja de ser válida y su email sigue reservado. Un `jugador` recibe `403` en los endpoints de gestión; una solicitud sin cookie recibe `401`.
 
 Respuestas: éxito `{ "status": "success", "data": ... }`; los listados agregan `meta: { "page", "limit", "total" }`. Error: `{ "status": "error", "message": "..." }` con códigos `400`, `401`, `403`, `404`, `409` o `500`.
 
 ## Verificación rápida
 
-Con el servidor levantado y un email aún no registrado:
+Con el servidor levantado, definí las cuentas reales a usar y un email aún no registrado:
 
 ```bash
+: "${ADMIN_EMAIL:?Definí ADMIN_EMAIL con el email de un administrador existente}"
+: "${PLAYER_EMAIL:?Definí PLAYER_EMAIL con el email de un jugador existente}"
+
 curl -i -c cookies.txt -H "Content-Type: application/json" -d '{"nombre":"Ana Perez","email":"ana.perez@example.com","password":"secreto123","categoria":"sexta","posicionHabitual":"drive","manoDominante":"diestro","sexo":"femenino","telefono":"1123456789"}' http://localhost:3000/api/auth/register
 
 curl -i -b cookies.txt http://localhost:3000/api/users/me
@@ -180,7 +187,7 @@ El registro y el login devuelven un header `Set-Cookie: padel_token=...; HttpOnl
 Para los endpoints de administración, iniciá sesión con un administrador y reutilizá su cookie:
 
 ```bash
-curl -i -c admin-cookies.txt -H "Content-Type: application/json" -d '{"email":"admin@example.com","password":"secreto123"}' http://localhost:3000/api/auth/login
+curl -i -c admin-cookies.txt -H "Content-Type: application/json" -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"secreto123\"}" http://localhost:3000/api/auth/login
 
 curl -i -b admin-cookies.txt "http://localhost:3000/api/users?rol=jugador&page=1&limit=10"
 
@@ -213,10 +220,12 @@ Las respuestas de reserva informan además `lugaresOcupados`, `lugaresFaltantes`
 | `POST` | `/api/canchas` | Administrador | Crea cancha |
 | `GET` | `/api/canchas/:id` | Cookie | Consulta por id de ruta |
 | `PATCH` | `/api/canchas/:id` | Administrador | Edita nombre o bloqueo |
+| `DELETE` | `/api/canchas/:id` | Administrador | Baja lógica; `409` si tiene turnos `disponible`, `reservado` o `bloqueado` |
 | `GET` | `/api/turnos` | Cookie | Lista turnos con filtros `fecha`, `canchaId`, `estado`, `page`, `limit`; el jugador siempre ve solo `disponible` |
 | `POST` | `/api/turnos` | Administrador | Carga manual de turno de 90 minutos desde `canchaId` y `fechaHoraInicio` |
 | `GET` | `/api/turnos/:id` | Cookie | Consulta por id de ruta |
 | `PATCH` | `/api/turnos/:id` | Administrador | Cambia fecha/estado, bloquea, cancela, marca `jugado` o republica desde `cancelado` |
+| `DELETE` | `/api/turnos/:id` | Administrador | Baja lógica sin cambiar `estado`; `409` si tiene reservas `pendiente` o `confirmada` |
 | `GET` | `/api/reservas` | Cookie | Jugador ve solo las suyas; administrador ve todas. Filtros `estado`, `turnoId`, `fecha`, `page`, `limit` |
 | `POST` | `/api/reservas` | Jugador | Solicita turno indicando `turnoId` y `cuposOcupados`; el turno pasa a `reservado` |
 | `GET` | `/api/reservas/:id` | Cookie | Consulta por id de ruta; reserva ajena da `404` para jugador |
@@ -224,6 +233,7 @@ Las respuestas de reserva informan además `lugaresOcupados`, `lugaresFaltantes`
 | `PATCH` | `/api/reservas/:id/confirmar` | Administrador | `pendiente` → `confirmada`; el turno sigue `reservado` |
 | `PATCH` | `/api/reservas/:id/rechazar` | Administrador | `pendiente` → `rechazada`; el turno vuelve a `disponible` |
 | `PATCH` | `/api/reservas/:id/cancelar` | Administrador | `confirmada` → `cancelada`; el turno queda `cancelado` y requiere republicación manual |
+| `DELETE` | `/api/reservas/:id` | Administrador | Baja lógica solo de reservas `rechazada`/`cancelada` sin partido vigente; no cambia el turno |
 
 ### Reglas de reserva y cupos
 
@@ -236,12 +246,12 @@ Las respuestas de reserva informan además `lugaresOcupados`, `lugaresFaltantes`
 
 ### Flujo completo con curl
 
-Los ejemplos usan las cuentas de prueba `admin@example.com` y `jugador@example.com` con la contraseña de prueba `secreto123`. Reemplazalos si tu base tiene otros usuarios. No se incluyen secretos de entorno.
+Los ejemplos usan `$ADMIN_EMAIL` y `$PLAYER_EMAIL`, definidos antes con cuentas reales de tu base, y la contraseña de prueba `secreto123`. No se incluyen secretos de entorno ni direcciones de administrador hardcodeadas.
 
 ```bash
-curl -s -c admin-cookies.txt -H "Content-Type: application/json" -d '{"email":"admin@example.com","password":"secreto123"}' http://localhost:3000/api/auth/login
+curl -s -c admin-cookies.txt -H "Content-Type: application/json" -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"secreto123\"}" http://localhost:3000/api/auth/login
 
-curl -s -c jugador-cookies.txt -H "Content-Type: application/json" -d '{"email":"jugador@example.com","password":"secreto123"}' http://localhost:3000/api/auth/login
+curl -s -c jugador-cookies.txt -H "Content-Type: application/json" -d "{\"email\":\"$PLAYER_EMAIL\",\"password\":\"secreto123\"}" http://localhost:3000/api/auth/login
 
 FECHA=$(node -e "process.stdout.write(new Date(Date.now() + 7*24*60*60*1000).toISOString())")
 
@@ -286,8 +296,8 @@ El administrador crea un `Partido` sobre una reserva confirmada. Los jugadores c
 - El turno asociado debe estar `reservado`. El alta rechaza reservas no confirmadas o duplicadas con `409`.
 - La inscripción usa `sequelize.transaction()` con `Transaction.LOCK.UPDATE` sobre el partido: ante dos inscripciones simultáneas al último lugar, una responde `201` y la otra `409`.
 - Cambiar `categoria` revalida a todos los inscriptos; si alguno queda fuera de rango, responde `409`. Solo un partido `completo` puede cerrarse como `jugado`.
-- Dar de baja un inscripto no modifica el turno. El administrador puede borrar cualquier inscripción; un jugador solo la propia (`403` si intenta borrar otra).
-- Cancelar por quórum elimina las inscripciones y marca `partido`, `reserva` y `turno` como `cancelados`. El turno no reaparece en `GET /api/turnos` hasta una republicación manual del administrador.
+- Dar de baja un inscripto no modifica el turno. El administrador puede bajar cualquier inscripción; un jugador solo la propia (`403` si intenta borrar otra). La fila queda con `deletedAt` y no se puede reinscribir: un intento responde `409`.
+- Cancelar por quórum marca las inscripciones con `deletedAt`, deja de contarlas como lugares ocupados y marca `partido`, `reserva` y `turno` como `cancelados`. El turno no reaparece en `GET /api/turnos` hasta una republicación manual del administrador.
 - `Reserva.cuposOcupados` queda como dato histórico: no se sincroniza con el nuevo listado de inscriptos.
 
 ### Endpoints
@@ -299,15 +309,16 @@ El administrador crea un `Partido` sobre una reserva confirmada. Los jugadores c
 | `GET` | `/api/partidos/:id` | Cookie | Detalle con inscriptos y huecos; jugador ve el suyo aunque esté completo, `404` si es ajeno |
 | `PATCH` | `/api/partidos/:id` | Administrador | Cambia `categoria` o cierra a `jugado` (solo si está `completo`) |
 | `POST` | `/api/partidos/:id/inscripciones` | Jugador | Inscripción al hueco con bloqueo transaccional |
-| `DELETE` | `/api/partidos/:id/inscripciones/:usuarioId` | Cookie | Baja propia (jugador) o de cualquier inscripto (administrador) |
+| `DELETE` | `/api/partidos/:id/inscripciones/:usuarioId` | Jugador titular o administrador | Baja lógica de la inscripción; `409` en partidos terminales o reinscripción histórica |
 | `PATCH` | `/api/partidos/:id/cancelar` | Administrador | Cancelación por falta de quórum; `409` si está `completo` |
+| `DELETE` | `/api/partidos/:id` | Administrador | Baja lógica de partidos `jugado`/`cancelado` sin inscripciones vigentes |
 
 ### Flujo completo con curl
 
 ```bash
-curl -s -c admin-cookies.txt -H "Content-Type: application/json" -d '{"email":"admin@example.com","password":"secreto123"}' http://localhost:3000/api/auth/login
+curl -s -c admin-cookies.txt -H "Content-Type: application/json" -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"secreto123\"}" http://localhost:3000/api/auth/login
 
-curl -s -c jugador-cookies.txt -H "Content-Type: application/json" -d '{"email":"jugador@example.com","password":"secreto123"}' http://localhost:3000/api/auth/login
+curl -s -c jugador-cookies.txt -H "Content-Type: application/json" -d "{\"email\":\"$PLAYER_EMAIL\",\"password\":\"secreto123\"}" http://localhost:3000/api/auth/login
 
 J2_EMAIL="qa-sexta-$(date +%s)@example.com"
 curl -s -b admin-cookies.txt -H "Content-Type: application/json" -d "{\"nombre\":\"Jugador QA\",\"email\":\"$J2_EMAIL\",\"password\":\"secreto123\",\"categoria\":\"quinta\",\"posicionHabitual\":\"drive\",\"manoDominante\":\"diestro\",\"sexo\":\"masculino\",\"telefono\":\"1144444444\",\"rol\":\"jugador\"}" http://localhost:3000/api/users
@@ -341,16 +352,33 @@ Los eventos de negocio exitosos envían correos transaccionales con `nodemailer`
 
 | Evento | Operación que lo dispara | Destinatarios |
 | --- | --- | --- |
-| Confirmación de registro | `POST /api/auth/register` o `POST /api/users` | Usuario creado y administradores |
-| Solicitud de reserva | `POST /api/reservas` | Jugador solicitante y administradores |
-| Confirmación, rechazo o cancelación de reserva | `PATCH /api/reservas/:id/confirmar`, `/rechazar` o `/cancelar` | Jugador titular y administradores |
-| Inscripción a partido | `POST /api/partidos/:id/inscripciones` | Jugador inscripto y administradores |
-| Baja de partido | `DELETE /api/partidos/:id/inscripciones/:usuarioId` | Jugador afectado y administradores |
-| Cancelación por quórum | `PATCH /api/partidos/:id/cancelar` | Inscriptos previos y administradores |
+| Confirmación de registro | `POST /api/auth/register` o `POST /api/users` | Usuario creado y destinatario administrativo configurado |
+| Solicitud de reserva | `POST /api/reservas` | Jugador solicitante y destinatario administrativo configurado |
+| Confirmación, rechazo o cancelación de reserva | `PATCH /api/reservas/:id/confirmar`, `/rechazar` o `/cancelar` | Jugador titular y destinatario administrativo configurado |
+| Inscripción a partido | `POST /api/partidos/:id/inscripciones` | Jugador inscripto y destinatario administrativo configurado |
+| Baja de partido | `DELETE /api/partidos/:id/inscripciones/:usuarioId` | Jugador afectado y destinatario administrativo configurado |
+| Cancelación por quórum | `PATCH /api/partidos/:id/cancelar` | Inscriptos previos y destinatario administrativo configurado |
 
 El envío se despacha después de confirmar la transacción y sin `await` en el camino de la request. Si SMTP falla o no está configurado, se registra un aviso con Pino (evento, cantidad de destinatarios y mensaje de error) y la respuesta HTTP, los estados y las transacciones no cambian. No hay reintentos ni historial persistente.
 
-Modo sin SMTP: dejar `SMTP_HOST` o `SMTP_FROM` vacíos. El servidor inicia normalmente, `/api/health` responde `200` y los eventos omiten el envío. Los administradores se resuelven desde DB con `rol: 'administrador'`; si no hay ninguno, el aviso llega solo al jugador involucrado.
+Modo sin SMTP: dejar `SMTP_HOST` o `SMTP_FROM` vacíos. El servidor inicia normalmente, `/api/health` responde `200` y los eventos omiten el envío. El destinatario administrativo se resuelve desde `ADMIN_NOTIFY_EMAIL`, con fallback a `SMTP_USER` solo si es un email válido; si no hay ninguno, el aviso llega solo al jugador involucrado y la operación continúa. No se consulta la DB para resolverlo y no se usan direcciones de ejemplo. Los jugadores dados de baja conservan su email como destinatario histórico de eventos ya confirmados.
+
+## Baja lógica, historial y unicidad
+
+Todas las bajas son lógicas: marcan `deletedAt` en la fila, no la eliminan y la ocultan de listados y detalles (`404`). Un identificador de ruta no entero positivo responde `400`. Ninguna baja cambia el `estado` del turno ni lo devuelve a `disponible`.
+
+| DELETE | Acceso | Baja permitida | `409` cuando |
+| --- | --- | --- | --- |
+| `/api/users/:id` | Administrador | Cualquier jugador o administrador que no sea el último | Es el último administrador, o tiene reservas/inscripciones activas |
+| `/api/canchas/:id` | Administrador | Sin turnos vigentes | Tiene turnos `disponible`, `reservado` o `bloqueado` |
+| `/api/turnos/:id` | Administrador | Sin reservas vigentes | Tiene reservas `pendiente` o `confirmada` |
+| `/api/reservas/:id` | Administrador | `rechazada` o `cancelada` | Es `pendiente`/`confirmada` o tiene partido `incompleto`/`completo` |
+| `/api/partidos/:id` | Administrador | `jugado` o `cancelado` | Es `incompleto`/`completo` o tiene inscripciones vigentes |
+| `/api/partidos/:id/inscripciones/:usuarioId` | Jugador titular o administrador | Partido `incompleto` o `completo` | Partido `jugado`/`cancelado`, inscripción inexistente o baja de un tercero (`403`) |
+
+La unicidad también respeta el historial: el email de un usuario dado de baja sigue reservado para registro público y alta administrativa, y un jugador dado de baja de un partido no puede reinscribirse (`409`). Las consultas de unicidad usan `paranoid: false`; las operaciones normales siguen ocultando las filas bajadas.
+
+El destinatario administrativo de los avisos se configura con `ADMIN_NOTIFY_EMAIL` (o `SMTP_USER` válido como fallback). Si no hay valor válido, se omite ese envío sin fallar la operación.
 
 ## Estructura
 

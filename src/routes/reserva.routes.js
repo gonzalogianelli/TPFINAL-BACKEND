@@ -8,6 +8,7 @@ import {
   confirmar,
   rechazar,
   cancelar,
+  remove,
 } from '../controllers/reserva.controller.js';
 
 const router = Router();
@@ -443,5 +444,62 @@ router.patch('/:id/cancelar', authenticate, requireRole('administrador'), cancel
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/:id', authenticate, getById);
+
+/**
+ * @swagger
+ * /api/reservas/{id}:
+ *   delete:
+ *     summary: Baja logica de una reserva por el administrador
+ *     description: Solo permite bajas de reservas rechazadas o canceladas sin partido vigente. No modifica el estado del turno ni lo republica.
+ *     tags: [Reservas]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Identificador de la reserva
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       200:
+ *         description: Reserva dada de baja
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessReservaResponse'
+ *       400:
+ *         description: Identificador invalido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Sesion ausente o invalida
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Rol no autorizado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Reserva no encontrada o ya dada de baja
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       409:
+ *         description: Reserva activa o con partido vigente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.delete('/:id', authenticate, requireRole('administrador'), remove);
 
 export { router as reservaRouter };

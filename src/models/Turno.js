@@ -43,12 +43,17 @@ Turno.init(
       allowNull: false,
       defaultValue: 'disponible',
     },
+    deletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
     modelName: 'Turno',
     tableName: 'turnos',
     timestamps: true,
+    paranoid: true,
   },
 );
 

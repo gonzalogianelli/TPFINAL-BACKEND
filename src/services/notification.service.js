@@ -1,3 +1,4 @@
+import { config } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { Cancha, Turno, User } from '../models/index.js';
 import { sendEmail } from './mail.service.js';
@@ -29,27 +30,27 @@ const normalizeRecipients = (users = []) => {
   return [...recipients.values()];
 };
 
-const findAdmins = () =>
-  User.findAll({
-    attributes: ['id', 'nombre', 'email'],
-    where: { rol: 'administrador' },
-  });
+const findAdminFromEnv = () => {
+  const email = config.smtp.adminNotifyEmail;
+  return email ? [{ email, nombre: '' }] : [];
+};
 
-const findUserById = (id) => User.findByPk(id, { attributes: ['id', 'nombre', 'email'] });
+const findUserById = (id) =>
+  User.findByPk(id, { attributes: ['id', 'nombre', 'email'], paranoid: false });
 
 const findTurnoById = (id) =>
   Turno.findByPk(id, { attributes: ['id', 'canchaId', 'fechaHoraInicio', 'estado'] });
 
 const findCanchaById = (id) => Cancha.findByPk(id, { attributes: ['id', 'nombre'] });
 
-const resolveAdmins = async (deps) => {
-  const resolver = deps.findAdmins ?? findAdmins;
+const resolveAdmin = async (deps) => {
+  const resolver = deps.findAdmin ?? findAdminFromEnv;
   try {
     return await resolver();
   } catch (error) {
     logger.warn(
-      { event: 'email.admins_lookup_failed', error: error?.message },
-      'No se pudieron resolver los administradores',
+      { event: 'email.admin_lookup_failed', error: error?.message },
+      'No se pudo resolver el destinatario administrador',
     );
     return [];
   }
@@ -57,8 +58,8 @@ const resolveAdmins = async (deps) => {
 
 const dispatchEvent = async ({ event, jugadores = [], context, templateKey, deps = {} }) => {
   try {
-    const admins = await resolveAdmins(deps);
-    const recipients = normalizeRecipients([...jugadores, ...admins]);
+    const admin = await resolveAdmin(deps);
+    const recipients = normalizeRecipients([...jugadores, ...admin]);
 
     if (recipients.length === 0) {
       logger.warn({ event, recipientCount: 0 }, 'Notificacion sin destinatarios validos');

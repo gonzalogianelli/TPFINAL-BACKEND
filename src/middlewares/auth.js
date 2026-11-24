@@ -23,7 +23,7 @@ const authenticate = async (req, res, next) => {
       throw unauthorized();
     }
 
-    const user = await User.findByPk(payload.id);
+    const user = await User.findByPk(payload.id, { paranoid: true });
     if (!user) {
       throw unauthorized();
     }

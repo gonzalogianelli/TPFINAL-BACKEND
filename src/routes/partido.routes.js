@@ -8,6 +8,7 @@ import {
   inscribir,
   baja,
   cancelar,
+  remove,
 } from '../controllers/partido.controller.js';
 
 const router = Router();
@@ -389,7 +390,12 @@ router.post('/:id/inscripciones', authenticate, requireRole('jugador'), inscribi
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.delete('/:id/inscripciones/:usuarioId', authenticate, baja);
+router.delete(
+  '/:id/inscripciones/:usuarioId',
+  authenticate,
+  requireRole('jugador', 'administrador'),
+  baja,
+);
 
 /**
  * @swagger
@@ -447,5 +453,62 @@ router.delete('/:id/inscripciones/:usuarioId', authenticate, baja);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.patch('/:id/cancelar', authenticate, requireRole('administrador'), cancelar);
+
+/**
+ * @swagger
+ * /api/partidos/{id}:
+ *   delete:
+ *     summary: Baja logica de un partido por el administrador
+ *     description: Solo permite bajas de partidos jugados o cancelados sin inscripciones vigentes. No altera la reserva ni el turno.
+ *     tags: [Partidos]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Identificador del partido
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       200:
+ *         description: Partido dado de baja
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessPartidoResponse'
+ *       400:
+ *         description: Identificador invalido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Sesion ausente o invalida
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Rol no autorizado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Partido no encontrado o ya dado de baja
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       409:
+ *         description: Partido activo o con inscripciones vigentes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.delete('/:id', authenticate, requireRole('administrador'), remove);
 
 export { router as partidoRouter };

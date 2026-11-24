@@ -20,12 +20,17 @@ Cancha.init(
       allowNull: false,
       defaultValue: false,
     },
+    deletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
     modelName: 'Cancha',
     tableName: 'canchas',
     timestamps: true,
+    paranoid: true,
   },
 );
 

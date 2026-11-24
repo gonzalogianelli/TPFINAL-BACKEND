@@ -45,6 +45,10 @@ const oneOf = (value, allowed, field) => {
 const validateCreateUserPayload = (payload, { allowRole = false } = {}) => {
   ensureObject(payload);
 
+  if (!allowRole && payload.rol !== undefined) {
+    fail('No esta permitido enviar el rol en el registro publico');
+  }
+
   const data = {
     nombre: requiredText(payload.nombre, 'nombre'),
     email: emailValue(payload.email),

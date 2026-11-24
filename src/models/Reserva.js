@@ -43,12 +43,17 @@ Reserva.init(
       defaultValue: 1,
       validate: { min: 1, max: CUPO_MAXIMO },
     },
+    deletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
     modelName: 'Reserva',
     tableName: 'reservas',
     timestamps: true,
+    paranoid: true,
   },
 );
 

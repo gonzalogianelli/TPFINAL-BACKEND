@@ -54,7 +54,11 @@ const options = {
     servers: [{ url: `http://localhost:${config.server.port}`, description: 'Servidor local' }],
     tags: [
       { name: 'Auth', description: 'Registro, inicio de sesion y cierre de sesion' },
-      { name: 'Usuarios', description: 'Gestion del perfil y alta de jugadores' },
+      {
+        name: 'Usuarios',
+        description:
+          'Gestion del perfil y de usuarios. El rol administrador cubre a dueno y empleado del complejo.',
+      },
       { name: 'Canchas', description: 'Gestion del inventario de canchas' },
       { name: 'Turnos', description: 'Carga manual de turnos de 90 minutos' },
       { name: 'Reservas', description: 'Solicitudes, cupos y decisiones de reserva' },
@@ -111,6 +115,7 @@ const options = {
         },
         RegisterRequest: {
           type: 'object',
+          additionalProperties: false,
           required: [
             'nombre',
             'email',

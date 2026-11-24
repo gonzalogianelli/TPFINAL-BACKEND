@@ -79,7 +79,7 @@ El sistema SHALL exponer una clase de error de aplicación con código de estado
 - **THEN** el cliente recibe `400` con `{ status: 'error', message }` y un mensaje legible
 
 ### Requirement: Documentación interactiva de la API
-El sistema SHALL exponer la documentación OpenAPI de la API en `/api-docs` (interfaz interactiva) y `/api-docs.json` (documento OpenAPI), incluyendo el esquema de seguridad `cookieAuth` para la cookie de sesión, y NO SHALL exigir autenticación para consultar la documentación.
+El sistema SHALL exponer la documentación OpenAPI de la API en `/api-docs` (interfaz interactiva) y `/api-docs.json` (documento OpenAPI), incluyendo el esquema de seguridad `cookieAuth` para la cookie de sesión, y NO SHALL exigir autenticación para consultar la documentación. La documentación SHALL incluir todos los endpoints de baja lógica con sus parámetros de ruta y sus respuestas `400`, `401`, `403`, `404` y `409` cuando correspondan.
 
 #### Scenario: Interfaz de documentación disponible
 - **WHEN** un cliente solicita `GET /api-docs` sin sesión
@@ -92,3 +92,7 @@ El sistema SHALL exponer la documentación OpenAPI de la API en `/api-docs` (int
 #### Scenario: Endpoints documentados con parámetros y respuestas
 - **WHEN** se consulta el documento OpenAPI
 - **THEN** los endpoints de autenticación, usuarios, canchas, turnos y reservas incluyen sus parámetros de ruta y consulta y las respuestas de éxito y error correspondientes
+
+#### Scenario: Endpoints de baja documentados
+- **WHEN** se consulta el documento OpenAPI
+- **THEN** los DELETE de usuarios, canchas, turnos, reservas, partidos e inscripciones incluyen `cookieAuth`, parámetros de ruta y respuestas `200`, `400`, `401`, `403`, `404` y `409` según corresponda

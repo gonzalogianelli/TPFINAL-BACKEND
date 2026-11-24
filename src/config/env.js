@@ -1,5 +1,6 @@
 import 'dotenv/config';
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isBlank = (value) => value === undefined || value === null || String(value).trim() === '';
 
 const required = (name) => {
@@ -39,8 +40,14 @@ const buildSmtpConfig = () => {
   const from = optional('SMTP_FROM');
   const secure = toBoolean('SMTP_SECURE', false);
   const enabled = Boolean(host && port && from);
+  const configuredAdmin = optional('ADMIN_NOTIFY_EMAIL');
+  const adminNotifyEmail = EMAIL_REGEX.test(configuredAdmin)
+    ? configuredAdmin
+    : EMAIL_REGEX.test(user)
+      ? user
+      : '';
 
-  return Object.freeze({ enabled, host, port, secure, user, pass, from });
+  return Object.freeze({ enabled, host, port, secure, user, pass, from, adminNotifyEmail });
 };
 
 const config = Object.freeze({

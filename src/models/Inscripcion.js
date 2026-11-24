@@ -22,12 +22,17 @@ Inscripcion.init(
       allowNull: false,
       references: { model: User, key: 'id' },
     },
+    deletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
     modelName: 'Inscripcion',
     tableName: 'inscripciones',
     timestamps: true,
+    paranoid: true,
     indexes: [
       {
         unique: true,

@@ -1,5 +1,12 @@
 import { Op, Transaction } from 'sequelize';
-import { Cancha, Turno, Reserva, RESERVAS_ACTIVAS } from '../models/index.js';
+import {
+  Cancha,
+  Turno,
+  Reserva,
+  Partido,
+  RESERVAS_ACTIVAS,
+  ESTADOS_PARTIDO_ACTIVOS,
+} from '../models/index.js';
 import { sequelize } from '../config/database.js';
 import { AppError } from '../utils/AppError.js';
 import {
@@ -204,6 +211,35 @@ const actualizarCupos = async (value, payload) => {
   });
 };
 
+const deleteReserva = async (value) => {
+  const id = parseReservaId(value);
+
+  return sequelize.transaction(async (transaction) => {
+    const reserva = await Reserva.findByPk(id, {
+      transaction,
+      lock: Transaction.LOCK.UPDATE,
+    });
+    if (!reserva) {
+      throw new AppError('Reserva no encontrada', 404);
+    }
+    if (RESERVAS_ACTIVAS.includes(reserva.estado)) {
+      throw new AppError('Solo se puede dar de baja una reserva rechazada o cancelada', 409);
+    }
+
+    const partidoActivo = await Partido.findOne({
+      where: { reservaId: id, estado: { [Op.in]: ESTADOS_PARTIDO_ACTIVOS } },
+      transaction,
+      lock: Transaction.LOCK.UPDATE,
+    });
+    if (partidoActivo) {
+      throw new AppError('No se puede dar de baja una reserva con partido vigente', 409);
+    }
+
+    await reserva.destroy({ transaction });
+    return serializeReserva(reserva);
+  });
+};
+
 export {
   crearReserva,
   listReservas,
@@ -212,4 +248,5 @@ export {
   rechazarReserva,
   cancelarReserva,
   actualizarCupos,
+  deleteReserva,
 };

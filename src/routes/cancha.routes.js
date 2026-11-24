@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate, requireRole } from '../middlewares/auth.js';
-import { list, getById, create, update } from '../controllers/cancha.controller.js';
+import { list, getById, create, update, remove } from '../controllers/cancha.controller.js';
 
 const router = Router();
 
@@ -229,5 +229,62 @@ router.get('/:id', authenticate, getById);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.patch('/:id', authenticate, requireRole('administrador'), update);
+
+/**
+ * @swagger
+ * /api/canchas/{id}:
+ *   delete:
+ *     summary: Baja logica de una cancha por el administrador
+ *     description: Marca la fila con deletedAt sin borrarla. Rechaza la baja si existen turnos vigentes disponibles, reservados o bloqueados.
+ *     tags: [Canchas]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Identificador de la cancha
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       200:
+ *         description: Cancha dada de baja
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessCanchaResponse'
+ *       400:
+ *         description: Identificador invalido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Sesion ausente o invalida
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Rol no autorizado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Cancha no encontrada o ya dada de baja
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       409:
+ *         description: Cancha con turnos activos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.delete('/:id', authenticate, requireRole('administrador'), remove);
 
 export { router as canchaRouter };

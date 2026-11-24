@@ -169,4 +169,31 @@ const updateTurno = async (value, payload) => {
   });
 };
 
-export { listTurnos, getTurnoById, createTurno, updateTurno };
+const deleteTurno = async (value) => {
+  const id = parseTurnoId(value);
+
+  return sequelize.transaction(async (transaction) => {
+    const turno = await Turno.findByPk(id, {
+      transaction,
+      lock: Transaction.LOCK.UPDATE,
+    });
+    if (!turno) {
+      throw new AppError('Turno no encontrado', 404);
+    }
+
+    const reservaActiva = await Reserva.findOne({
+      where: { turnoId: id, estado: { [Op.in]: RESERVAS_ACTIVAS } },
+      attributes: ['id'],
+      transaction,
+      lock: Transaction.LOCK.UPDATE,
+    });
+    if (reservaActiva) {
+      throw new AppError('No se puede dar de baja un turno con reservas activas', 409);
+    }
+
+    await turno.destroy({ transaction });
+    return turno;
+  });
+};
+
+export { listTurnos, getTurnoById, createTurno, updateTurno, deleteTurno };

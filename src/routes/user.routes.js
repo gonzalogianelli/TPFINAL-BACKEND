@@ -1,6 +1,14 @@
 import { Router } from 'express';
 import { authenticate, requireRole } from '../middlewares/auth.js';
-import { getMe, updateMe, list, getById, create, update } from '../controllers/user.controller.js';
+import {
+  getMe,
+  updateMe,
+  list,
+  getById,
+  create,
+  update,
+  remove,
+} from '../controllers/user.controller.js';
 
 const router = Router();
 
@@ -149,7 +157,7 @@ router.get('/', authenticate, requireRole('administrador'), list);
  * /api/users:
  *   post:
  *     summary: Alta de usuarios por el administrador
- *     description: Permite crear jugadores o administradores y envia un correo de confirmacion al nuevo usuario.
+ *     description: Permite crear jugadores o administradores y envia un correo de confirmacion al nuevo usuario. El rol administrador cubre a dueno y empleado del complejo.
  *     tags: [Usuarios]
  *     security:
  *       - cookieAuth: []
@@ -248,7 +256,7 @@ router.get('/:id', authenticate, requireRole('administrador'), getById);
  * /api/users/{id}:
  *   patch:
  *     summary: Edicion de usuarios por el administrador
- *     description: Permite actualizar datos y el rol del usuario.
+ *     description: Permite actualizar datos y el rol del usuario. No se puede degradar al ultimo administrador; esa operacion responde 409. El rol administrador cubre a dueno y empleado del complejo.
  *     tags: [Usuarios]
  *     security:
  *       - cookieAuth: []
@@ -298,12 +306,69 @@ router.get('/:id', authenticate, requireRole('administrador'), getById);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       409:
- *         description: Email ya registrado
+ *         description: Email ya registrado o intento de degradar al ultimo administrador
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.patch('/:id', authenticate, requireRole('administrador'), update);
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   delete:
+ *     summary: Baja logica de un usuario por el administrador
+ *     description: Marca la fila con deletedAt sin borrarla, conserva el historial y devuelve el usuario sin contraseña. Rechaza la baja del ultimo administrador o de usuarios con dependencias activas.
+ *     tags: [Usuarios]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Identificador del usuario
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       200:
+ *         description: Usuario dado de baja
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessUserResponse'
+ *       400:
+ *         description: Identificador invalido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Sesion ausente o invalida
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Rol no autorizado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Usuario no encontrado o ya dado de baja
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       409:
+ *         description: Ultimo administrador o dependencias activas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.delete('/:id', authenticate, requireRole('administrador'), remove);
 
 export { router as userRouter };

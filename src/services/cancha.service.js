@@ -1,5 +1,7 @@
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
+import { sequelize } from '../config/database.js';
 import { Cancha } from '../models/Cancha.js';
+import { Turno, TURNOS_ACTIVOS } from '../models/index.js';
 import { AppError } from '../utils/AppError.js';
 import {
   validateCreateCanchaPayload,
@@ -51,4 +53,31 @@ const updateCancha = async (value, payload) => {
   return cancha;
 };
 
-export { listCanchas, getCanchaById, createCancha, updateCancha };
+const deleteCancha = async (value) => {
+  const id = parseCanchaId(value);
+
+  return sequelize.transaction(async (transaction) => {
+    const cancha = await Cancha.findByPk(id, {
+      transaction,
+      lock: Transaction.LOCK.UPDATE,
+    });
+    if (!cancha) {
+      throw new AppError('Cancha no encontrada', 404);
+    }
+
+    const turnoActivo = await Turno.findOne({
+      where: { canchaId: id, estado: { [Op.in]: TURNOS_ACTIVOS } },
+      attributes: ['id'],
+      transaction,
+      lock: Transaction.LOCK.UPDATE,
+    });
+    if (turnoActivo) {
+      throw new AppError('No se puede dar de baja una cancha con turnos activos', 409);
+    }
+
+    await cancha.destroy({ transaction });
+    return cancha;
+  });
+};
+
+export { listCanchas, getCanchaById, createCancha, updateCancha, deleteCancha };

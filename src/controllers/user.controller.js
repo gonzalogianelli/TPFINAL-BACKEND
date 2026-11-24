@@ -4,6 +4,7 @@ import {
   listUsers,
   createUser,
   updateUser,
+  deleteUser,
 } from '../services/user.service.js';
 import { parseUserId } from '../utils/userValidation.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -41,4 +42,9 @@ const update = asyncHandler(async (req, res) => {
   return res.status(200).json({ status: 'success', data: user });
 });
 
-export { getMe, updateMe, list, getById, create, update };
+const remove = asyncHandler(async (req, res) => {
+  const user = await deleteUser(req.params.id);
+  return res.status(200).json({ status: 'success', data: user });
+});
+
+export { getMe, updateMe, list, getById, create, update, remove };

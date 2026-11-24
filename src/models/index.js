@@ -1,3 +1,4 @@
+import { DataTypes } from 'sequelize';
 import { sequelize } from '../config/database.js';
 import { logger } from '../config/logger.js';
 import { User } from './User.js';
@@ -30,9 +31,31 @@ Inscripcion.belongsTo(Partido, { foreignKey: 'partidoId' });
 User.hasMany(Inscripcion, { foreignKey: 'usuarioId', as: 'inscripciones' });
 Inscripcion.belongsTo(User, { foreignKey: 'usuarioId' });
 
+const modelosConBajaLogica = [User, Cancha, Turno, Reserva, Partido, Inscripcion];
+
+const ensureDeletedAtColumn = async (model) => {
+  const queryInterface = sequelize.getQueryInterface();
+  const description = await queryInterface.describeTable(model.tableName);
+  if (description.deletedAt) return false;
+
+  await queryInterface.addColumn(model.tableName, 'deletedAt', {
+    type: DataTypes.DATE,
+    allowNull: true,
+  });
+  return true;
+};
+
 const initModels = async () => {
   await sequelize.sync();
-  logger.info('Modelos sincronizados con MySQL');
+
+  const columnasAgregadas = [];
+  for (const model of modelosConBajaLogica) {
+    if (await ensureDeletedAtColumn(model)) {
+      columnasAgregadas.push(model.tableName);
+    }
+  }
+  logger.info({ columnasAgregadas }, 'Modelos sincronizados con MySQL');
+
   return { User, Cancha, Turno, Reserva, Partido, Inscripcion };
 };
 

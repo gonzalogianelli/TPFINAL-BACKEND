@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate, requireRole } from '../middlewares/auth.js';
-import { list, getById, create, update } from '../controllers/turno.controller.js';
+import { list, getById, create, update, remove } from '../controllers/turno.controller.js';
 
 const router = Router();
 
@@ -263,5 +263,62 @@ router.get('/:id', authenticate, getById);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.patch('/:id', authenticate, requireRole('administrador'), update);
+
+/**
+ * @swagger
+ * /api/turnos/{id}:
+ *   delete:
+ *     summary: Baja logica de un turno por el administrador
+ *     description: Marca la fila con deletedAt sin cambiar su estado ni republicarlo. Rechaza la baja si existen reservas pendientes o confirmadas.
+ *     tags: [Turnos]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Identificador del turno
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       200:
+ *         description: Turno dado de baja
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessTurnoResponse'
+ *       400:
+ *         description: Identificador invalido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Sesion ausente o invalida
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Rol no autorizado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Turno no encontrado o ya dado de baja
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       409:
+ *         description: Turno con reservas activas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.delete('/:id', authenticate, requireRole('administrador'), remove);
 
 export { router as turnoRouter };

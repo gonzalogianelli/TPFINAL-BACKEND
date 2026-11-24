@@ -7,6 +7,7 @@ import {
   Turno,
   User,
   CUPO_MAXIMO_PARTIDO,
+  ESTADOS_PARTIDO_ACTIVOS,
 } from '../models/index.js';
 import { AppError } from '../utils/AppError.js';
 import {
@@ -273,6 +274,7 @@ const inscribirJugador = async (value, user, deps = {}) => {
     const duplicado = await Inscripcion.findOne({
       where: { partidoId, usuarioId: user.id },
       transaction,
+      paranoid: false,
     });
     if (duplicado) {
       throw new AppError('El jugador ya esta inscripto en el partido', 409);
@@ -378,7 +380,9 @@ const cancelarPorQuorum = async (value, deps = {}) => {
     const inscripciones = await Inscripcion.findAll({ where: { partidoId }, transaction });
     inscriptos = (
       await Promise.all(
-        inscripciones.map((inscripcion) => User.findByPk(inscripcion.usuarioId, { transaction })),
+        inscripciones.map((inscripcion) =>
+          User.findByPk(inscripcion.usuarioId, { transaction, paranoid: false }),
+        ),
       )
     ).filter(Boolean);
 
@@ -394,6 +398,36 @@ const cancelarPorQuorum = async (value, deps = {}) => {
   return partido;
 };
 
+const deletePartido = async (value) => {
+  const id = parsePartidoId(value);
+
+  return sequelize.transaction(async (transaction) => {
+    const partido = await Partido.findByPk(id, {
+      transaction,
+      lock: Transaction.LOCK.UPDATE,
+    });
+    if (!partido) {
+      throw new AppError('Partido no encontrado', 404);
+    }
+    if (ESTADOS_PARTIDO_ACTIVOS.includes(partido.estado)) {
+      throw new AppError('Solo se puede dar de baja un partido jugado o cancelado', 409);
+    }
+
+    const inscripcionVigente = await Inscripcion.findOne({
+      where: { partidoId: id },
+      transaction,
+      lock: Transaction.LOCK.UPDATE,
+    });
+    if (inscripcionVigente) {
+      throw new AppError('No se puede dar de baja un partido con inscripciones vigentes', 409);
+    }
+
+    const serializado = serializePartido(await findPartido(id, transaction));
+    await partido.destroy({ transaction });
+    return serializado;
+  });
+};
+
 export {
   crearPartido,
   listPartidos,
@@ -402,5 +436,6 @@ export {
   inscribirJugador,
   darDeBaja,
   cancelarPorQuorum,
+  deletePartido,
   serializePartido,
 };

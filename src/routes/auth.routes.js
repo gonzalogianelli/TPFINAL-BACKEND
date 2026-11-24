@@ -8,7 +8,7 @@ const router = Router();
  * /api/auth/register:
  *   post:
  *     summary: Registro publico de jugador
- *     description: Crea un usuario con rol jugador, inicia sesion con una cookie HTTPOnly y envia un correo de confirmacion al nuevo usuario.
+ *     description: Crea un usuario con rol jugador, inicia sesion con una cookie HTTPOnly y envia un correo de confirmacion al nuevo usuario. El campo rol no esta permitido en el registro publico; enviarlo responde 400.
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -29,7 +29,7 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/SuccessUserResponse'
  *       400:
- *         description: Datos invalidos
+ *         description: Datos de registro invalidos; el campo rol no esta permitido en el registro publico
  *         content:
  *           application/json:
  *             schema:

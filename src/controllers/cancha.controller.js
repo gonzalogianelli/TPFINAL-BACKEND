@@ -3,6 +3,7 @@ import {
   getCanchaById,
   createCancha,
   updateCancha,
+  deleteCancha,
 } from '../services/cancha.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -30,4 +31,9 @@ const update = asyncHandler(async (req, res) => {
   return res.status(200).json({ status: 'success', data: cancha });
 });
 
-export { list, getById, create, update };
+const remove = asyncHandler(async (req, res) => {
+  const cancha = await deleteCancha(req.params.id);
+  return res.status(200).json({ status: 'success', data: cancha });
+});
+
+export { list, getById, create, update, remove };

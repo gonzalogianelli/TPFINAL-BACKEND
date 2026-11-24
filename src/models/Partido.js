@@ -31,12 +31,17 @@ Partido.init(
       allowNull: false,
       defaultValue: 'incompleto',
     },
+    deletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     sequelize,
     modelName: 'Partido',
     tableName: 'partidos',
     timestamps: true,
+    paranoid: true,
   },
 );
 

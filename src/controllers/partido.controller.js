@@ -6,6 +6,7 @@ import {
   inscribirJugador,
   darDeBaja,
   cancelarPorQuorum,
+  deletePartido,
 } from '../services/partido.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -48,4 +49,9 @@ const cancelar = asyncHandler(async (req, res) => {
   return res.status(200).json({ status: 'success', data: partido });
 });
 
-export { list, getById, create, update, inscribir, baja, cancelar };
+const remove = asyncHandler(async (req, res) => {
+  const partido = await deletePartido(req.params.id);
+  return res.status(200).json({ status: 'success', data: partido });
+});
+
+export { list, getById, create, update, inscribir, baja, cancelar, remove };

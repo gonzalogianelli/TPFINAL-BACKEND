@@ -13,7 +13,7 @@ const isUniqueConstraintError = (error) => error?.name === 'SequelizeUniqueConst
 const registerUser = async (payload, deps = {}) => {
   const data = validateCreateUserPayload(payload, { allowRole: false });
 
-  const existing = await User.findOne({ where: { email: data.email } });
+  const existing = await User.findOne({ where: { email: data.email }, paranoid: false });
   if (existing) {
     throw new AppError('El email ya esta registrado', 409);
   }
@@ -36,7 +36,9 @@ const loginUser = async ({ email, password } = {}) => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  const user = await User.scope('withPassword').findOne({ where: { email: normalizedEmail } });
+  const user = await User.scope('withPassword').findOne({
+    where: { email: normalizedEmail, deletedAt: null },
+  });
 
   if (!user) {
     throw invalidCredentials();

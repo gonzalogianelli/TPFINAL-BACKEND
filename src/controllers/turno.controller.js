@@ -1,4 +1,10 @@
-import { listTurnos, getTurnoById, createTurno, updateTurno } from '../services/turno.service.js';
+import {
+  listTurnos,
+  getTurnoById,
+  createTurno,
+  updateTurno,
+  deleteTurno,
+} from '../services/turno.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 const list = asyncHandler(async (req, res) => {
@@ -25,4 +31,9 @@ const update = asyncHandler(async (req, res) => {
   return res.status(200).json({ status: 'success', data: turno });
 });
 
-export { list, getById, create, update };
+const remove = asyncHandler(async (req, res) => {
+  const turno = await deleteTurno(req.params.id);
+  return res.status(200).json({ status: 'success', data: turno });
+});
+
+export { list, getById, create, update, remove };
