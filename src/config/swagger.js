@@ -11,7 +11,11 @@ const usuarioSchema = {
   properties: {
     id: { type: 'integer', example: 1 },
     nombre: { type: 'string', example: 'Ana Perez' },
-    email: { type: 'string', format: 'email', example: 'ana@example.com' },
+    email: {
+      type: 'string',
+      format: 'email',
+      description: 'Usar una dirección de correo real válida',
+    },
     categoria: {
       type: 'string',
       enum: ['octava', 'séptima', 'sexta', 'quinta', 'cuarta', 'tercera', 'segunda', 'primera'],
@@ -29,7 +33,7 @@ const usuarioSchema = {
 
 const userFields = {
   nombre: { type: 'string', example: 'Ana Perez' },
-  email: { type: 'string', format: 'email', example: 'ana@example.com' },
+  email: { type: 'string', format: 'email', description: 'Usar una dirección de correo real válida' },
   password: { type: 'string', minLength: 8, example: 'secreto123' },
   categoria: {
     type: 'string',

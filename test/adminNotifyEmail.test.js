@@ -81,11 +81,11 @@ const waitFor = async (predicate, timeoutMs = 3000) => {
 test('ADMIN_NOTIFY_EMAIL se resuelve sin requerir SMTP y sin direcciones de ejemplo', () => {
   assert.equal(resolveConfiguredAdmin('', ''), '');
   assert.equal(
-    resolveConfiguredAdmin('admin-entorno-qa@example.com', 'smtp-qa@example.com'),
-    'admin-entorno-qa@example.com',
+    resolveConfiguredAdmin('admin-entorno-qa@padel.test', 'smtp-qa@padel.test'),
+    'admin-entorno-qa@padel.test',
   );
-  assert.equal(resolveConfiguredAdmin('', 'smtp-qa@example.com'), 'smtp-qa@example.com');
-  assert.equal(resolveConfiguredAdmin('valor-invalido', 'smtp-qa@example.com'), 'smtp-qa@example.com');
+  assert.equal(resolveConfiguredAdmin('', 'smtp-qa@padel.test'), 'smtp-qa@padel.test');
+  assert.equal(resolveConfiguredAdmin('valor-invalido', 'smtp-qa@padel.test'), 'smtp-qa@padel.test');
   const ejemploProhibido = 'admin@' + 'example.com';
   assert.notEqual(resolveConfiguredAdmin('', ''), ejemploProhibido);
 });
@@ -94,16 +94,16 @@ test('dispatchEvent usa el destinatario admin inyectado junto al jugador', async
   const { recipients, sendMail } = recipientCollector();
 
   await notifyUserRegistered(
-    { id: 1, nombre: 'Jugador QA', email: 'jugador-notify-qa@example.com' },
+    { id: 1, nombre: 'Jugador QA', email: 'jugador-notify-qa@padel.test' },
     {
-      findAdmin: async () => [{ email: 'admin-config-qa@example.com', nombre: 'Admin' }],
+      findAdmin: async () => [{ email: 'admin-config-qa@padel.test', nombre: 'Admin' }],
       sendMail,
     },
   );
 
   assert.deepEqual(recipients.sort(), [
-    'admin-config-qa@example.com',
-    'jugador-notify-qa@example.com',
+    'admin-config-qa@padel.test',
+    'jugador-notify-qa@padel.test',
   ]);
   assert.ok(!recipients.includes('admin@' + 'example.com'));
 });
@@ -112,15 +112,15 @@ test('sin destinatario administrativo el aviso llega solo al jugador', async () 
   const { recipients, sendMail } = recipientCollector();
 
   await notifyUserRegistered(
-    { id: 2, nombre: 'Jugador QA', email: 'jugador-sin-admin-qa@example.com' },
+    { id: 2, nombre: 'Jugador QA', email: 'jugador-sin-admin-qa@padel.test' },
     { findAdmin: async () => [], sendMail },
   );
 
-  assert.deepEqual(recipients, ['jugador-sin-admin-qa@example.com']);
+  assert.deepEqual(recipients, ['jugador-sin-admin-qa@padel.test']);
 });
 
 test('un usuario dado de baja conserva su email como destinatario historico', async () => {
-  const user = await createUser('historico-baja-email-qa@example.com');
+  const user = await createUser('historico-baja-email-qa@padel.test');
   await user.destroy();
   const { recipients, sendMail } = recipientCollector();
 
@@ -130,7 +130,7 @@ test('un usuario dado de baja conserva su email como destinatario historico', as
     { findAdmin: async () => [], sendMail },
   );
 
-  assert.deepEqual(recipients, ['historico-baja-email-qa@example.com']);
+  assert.deepEqual(recipients, ['historico-baja-email-qa@padel.test']);
 });
 
 test('la cancelacion por quorum notifica a inscriptos dados de baja con anterioridad', async () => {
@@ -142,7 +142,7 @@ test('la cancelacion por quorum notifica a inscriptos dados de baja con anterior
     fechaHoraFin: new Date(inicio.getTime() + 90 * 60 * 1000),
     estado: 'reservado',
   });
-  const jugador = await createUser('inscripto-historico-quorum-qa@example.com');
+  const jugador = await createUser('inscripto-historico-quorum-qa@padel.test');
   const reserva = await Reserva.create({
     turnoId: turno.id,
     usuarioId: jugador.id,
@@ -161,5 +161,5 @@ test('la cancelacion por quorum notifica a inscriptos dados de baja con anterior
   await cancelarPorQuorum(partido.id, { findAdmin: async () => [], sendMail });
   await waitFor(() => recipients.length > 0);
 
-  assert.deepEqual(recipients, ['inscripto-historico-quorum-qa@example.com']);
+  assert.deepEqual(recipients, ['inscripto-historico-quorum-qa@padel.test']);
 });

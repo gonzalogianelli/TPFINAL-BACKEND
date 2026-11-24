@@ -96,3 +96,10 @@ El sistema SHALL exponer la documentación OpenAPI de la API en `/api-docs` (int
 #### Scenario: Endpoints de baja documentados
 - **WHEN** se consulta el documento OpenAPI
 - **THEN** los DELETE de usuarios, canchas, turnos, reservas, partidos e inscripciones incluyen `cookieAuth`, parámetros de ruta y respuestas `200`, `400`, `401`, `403`, `404` y `409` según corresponda
+
+### Requirement: Ejemplos de correo en OpenAPI
+Los ejemplos de campos de email en la documentación OpenAPI NO SHALL usar dominios de ejemplo reservados y SHALL indicar que se debe usar una dirección real válida.
+
+#### Scenario: Ejemplos de email no entregables
+- **WHEN** se consulta el documento OpenAPI
+- **THEN** los esquemas de email no contienen `ana@example.com` ni dominios de ejemplo reservados e indican usar una dirección real válida

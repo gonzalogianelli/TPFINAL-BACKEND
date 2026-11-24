@@ -42,3 +42,20 @@ test('el contrato OpenAPI documenta RBAC y el guard del ultimo administrador', a
     assert.ok(responses['403'], `falta 403 en ${method} ${path}`);
   }
 });
+
+test('el contrato OpenAPI no sugiere correos de dominios de ejemplo', async () => {
+  const response = await request(app).get('/api-docs.json').expect(200);
+  const schemas = JSON.stringify(response.body.components.schemas);
+
+  assert.doesNotMatch(schemas, /ana@example\.com/i);
+  assert.doesNotMatch(schemas, /@example\.(com|org|net)\b/i);
+  assert.doesNotMatch(schemas, /@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.example\b/i);
+  assert.match(
+    response.body.components.schemas.Usuario.properties.email.description,
+    /correo real válida/,
+  );
+  assert.match(
+    response.body.components.schemas.RegisterRequest.properties.email.description,
+    /correo real válida/,
+  );
+});

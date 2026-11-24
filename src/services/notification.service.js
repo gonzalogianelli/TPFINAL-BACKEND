@@ -1,7 +1,7 @@
 import { config } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { Cancha, Turno, User } from '../models/index.js';
-import { sendEmail } from './mail.service.js';
+import { isReservedExampleRecipient, sendEmail } from './mail.service.js';
 import { renderEmail } from '../templates/email/index.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -59,7 +59,18 @@ const resolveAdmin = async (deps) => {
 const dispatchEvent = async ({ event, jugadores = [], context, templateKey, deps = {} }) => {
   try {
     const admin = await resolveAdmin(deps);
-    const recipients = normalizeRecipients([...jugadores, ...admin]);
+    const allRecipients = normalizeRecipients([...jugadores, ...admin]);
+    const recipients = allRecipients.filter(
+      (recipient) => !isReservedExampleRecipient(recipient.email),
+    );
+    const skippedCount = allRecipients.length - recipients.length;
+
+    if (skippedCount > 0) {
+      logger.warn(
+        { event: 'email.example_domain_skipped', notificationEvent: event, skippedCount },
+        'Se omitieron destinatarios de dominios de ejemplo reservados',
+      );
+    }
 
     if (recipients.length === 0) {
       logger.warn({ event, recipientCount: 0 }, 'Notificacion sin destinatarios validos');
